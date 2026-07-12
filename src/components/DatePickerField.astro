@@ -1,0 +1,79 @@
+---
+interface Props {
+  id: string;
+  label: string;
+  name?: string;
+  value?: string;
+  required?: boolean;
+  description?: string;
+  unavailableDates?: string[];
+  optionalLabel?: string;
+  disablePast?: boolean;
+}
+
+const {
+  id,
+  label,
+  name,
+  value = '',
+  required = false,
+  description = '',
+  unavailableDates = [],
+  optionalLabel = '',
+  disablePast = true,
+} = Astro.props;
+
+const unavailableJson = JSON.stringify(unavailableDates);
+---
+
+<div
+  class="date-picker"
+  data-date-picker
+  data-unavailable-dates={unavailableJson}
+  data-disable-past={disablePast ? 'true' : 'false'}
+  data-required={required ? 'true' : 'false'}
+>
+  <div class="flex items-center justify-between gap-3">
+    <label for={id} class="text-sm font-medium text-[var(--brand-ink)]">{label}</label>
+    {optionalLabel ? <span class="text-xs text-[var(--brand-ink-soft)]">{optionalLabel}</span> : null}
+  </div>
+  {description ? <p class="text-sm leading-6 text-[var(--brand-ink-soft)]">{description}</p> : null}
+  <div class="date-picker__control" data-date-picker-control>
+    <input
+      id={id}
+      name={name}
+      type="text"
+      class="input-shell date-picker__input"
+      placeholder="Select a date"
+      value={value}
+      readonly
+      required={required}
+      aria-haspopup="dialog"
+      aria-expanded="false"
+      autocomplete="off"
+      data-date-picker-input
+    />
+    <button type="button" class="date-picker__trigger" aria-label={`Open ${label} calendar`} data-date-picker-trigger>
+      <span aria-hidden="true"></span>
+    </button>
+  </div>
+  <div class="date-picker__popover" data-date-picker-popover>
+    <div class="date-picker__calendar" role="dialog" aria-modal="false" aria-label={`${label} calendar`}>
+    <div class="date-picker__calendar-header">
+      <button type="button" class="date-picker__nav" aria-label="Previous month" data-date-picker-prev>&larr;</button>
+      <p class="date-picker__month" data-date-picker-month></p>
+      <button type="button" class="date-picker__nav" aria-label="Next month" data-date-picker-next>&rarr;</button>
+    </div>
+    <div class="date-picker__weekday-row" aria-hidden="true">
+      <span>Mon</span>
+      <span>Tue</span>
+      <span>Wed</span>
+      <span>Thu</span>
+      <span>Fri</span>
+      <span>Sat</span>
+      <span>Sun</span>
+    </div>
+    <div class="date-picker__grid" data-date-picker-grid></div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,11 @@
+---
+interface Props {
+  class?: string;
+}
+
+const className = Astro.props.class ?? '';
+---
+
+<p class:list={['compliance-note', className]}>
+  <a href="/allergen-information" class="compliance-inline-link">Allergen information</a> is available before ordering. Our kitchen handles milk, eggs, gluten/wheat, soya, nuts and peanuts. Please contact us before ordering if you have an allergy, intolerance or dietary requirement.
+</p>

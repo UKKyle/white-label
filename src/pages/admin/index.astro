@@ -1,0 +1,116 @@
+---
+import AdminShell from '../../components/admin/AdminShell.astro';
+import { getAdminSession } from '../../lib/adminAuth';
+import { listOrderRecords, type OrderRecord } from '../../lib/orderStore';
+import { getAdapterEnv } from '../../lib/runtimeEnv';
+import { routes } from '../../lib/routes';
+import '../../styles/global.css';
+
+export const prerender = false;
+
+let session = null;
+
+try {
+  session = await getAdminSession(Astro);
+} catch {
+  session = null;
+}
+
+if (!session) {
+  return Astro.redirect(routes.adminLogin);
+}
+
+const env = getAdapterEnv(Astro);
+let orders: OrderRecord[] = [];
+let ordersLoadError = '';
+
+try {
+  orders = await listOrderRecords(env);
+} catch {
+  ordersLoadError = 'Order storage could not be loaded. The dashboard is still available, but order counts may be incomplete until storage is reachable.';
+}
+
+const paidOrders = orders.filter((order) => order.paymentStatus === 'PAID').length;
+const pendingOrders = orders.filter((order) => order.paymentStatus === 'PENDING').length;
+const unfulfilledOrders = orders.filter((order) => order.fulfillmentStatus !== 'FULFILLED').length;
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard | Crumb Works</title>
+  </head>
+
+  <body class="font-body">
+    <AdminShell
+      activeNav="home"
+      pageTitle="Admin"
+      pageSubtitle="Dashboard"
+      searchAction={routes.adminOrders}
+      sessionEmail={session.email}
+    >
+      <Fragment slot="actions">
+        <a
+          href={routes.adminOrders}
+          class="rounded-2xl border border-[#121212] bg-[#1d1d1d] px-4 py-2.5 text-sm font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] transition hover:bg-black"
+        >
+          Open orders
+        </a>
+      </Fragment>
+
+      {ordersLoadError && (
+        <div class="mb-4 rounded-[22px] border border-[#f0d18a] bg-[#fff8e8] px-5 py-4 text-sm font-medium text-[#7a4d00] shadow-[0_10px_30px_rgba(0,0,0,0.04)]">
+          {ordersLoadError}
+        </div>
+      )}
+
+      <section class="grid gap-4 lg:grid-cols-3">
+        <article class="rounded-[24px] border border-black/6 bg-white p-6 shadow-[0_12px_32px_rgba(0,0,0,0.04)]">
+          <p class="text-sm font-medium text-[#5f6368]">Stored orders</p>
+          <p class="mt-4 text-[2.25rem] font-semibold tracking-tight text-[#202223]">{orders.length}</p>
+        </article>
+
+        <article class="rounded-[24px] border border-black/6 bg-white p-6 shadow-[0_12px_32px_rgba(0,0,0,0.04)]">
+          <p class="text-sm font-medium text-[#5f6368]">Paid / pending</p>
+          <p class="mt-4 text-[2.25rem] font-semibold tracking-tight text-[#202223]">{paidOrders} / {pendingOrders}</p>
+        </article>
+
+        <article class="rounded-[24px] border border-black/6 bg-white p-6 shadow-[0_12px_32px_rgba(0,0,0,0.04)]">
+          <p class="text-sm font-medium text-[#5f6368]">Unfulfilled</p>
+          <p class="mt-4 text-[2.25rem] font-semibold tracking-tight text-[#202223]">{unfulfilledOrders}</p>
+        </article>
+      </section>
+
+      <section class="mt-6 rounded-[24px] border border-black/6 bg-white shadow-[0_12px_32px_rgba(0,0,0,0.04)]">
+        <div class="grid divide-y divide-black/6 md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-5">
+          <a href={routes.adminOrders} class="block p-6 transition hover:bg-[#f7f7f7]">
+            <p class="text-base font-semibold text-[#202223]">Orders</p>
+            <p class="mt-2 text-sm leading-6 text-[#646a70]">Search orders, export CSVs, and update fulfilment.</p>
+          </a>
+          <a href={routes.adminOnlineStore} class="block p-6 transition hover:bg-[#f7f7f7]">
+            <p class="text-base font-semibold text-[#202223]">Online Store</p>
+            <p class="mt-2 text-sm leading-6 text-[#646a70]">Search and edit products shown on the website.</p>
+          </a>
+          <a href={routes.adminAvailability} class="block p-6 transition hover:bg-[#f7f7f7]">
+            <p class="text-base font-semibold text-[#202223]">Availability</p>
+            <p class="mt-2 text-sm leading-6 text-[#646a70]">Mark dates as unavailable before customers request them.</p>
+          </a>
+          <a href={routes.adminPos} class="block p-6 transition hover:bg-[#f7f7f7]">
+            <p class="text-base font-semibold text-[#202223]">Point of Sale</p>
+            <p class="mt-2 text-sm leading-6 text-[#646a70]">Manage POS products and PIN access.</p>
+          </a>
+          <a href={routes.adminImages} class="block p-6 transition hover:bg-[#f7f7f7]">
+            <p class="text-base font-semibold text-[#202223]">Manage Images</p>
+            <p class="mt-2 text-sm leading-6 text-[#646a70]">Preview and replace current live-site images.</p>
+          </a>
+          <a href={routes.adminSettings} class="block p-6 transition hover:bg-[#f7f7f7]">
+            <p class="text-base font-semibold text-[#202223]">Settings</p>
+            <p class="mt-2 text-sm leading-6 text-[#646a70]">Clear stored test orders when needed.</p>
+          </a>
+        </div>
+      </section>
+    </AdminShell>
+  </body>
+</html>

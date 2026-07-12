@@ -1,0 +1,14 @@
+---
+interface Props {
+  title: string;
+  copy: string;
+  align?: 'left' | 'center';
+}
+
+const { title, copy, align = 'left' } = Astro.props;
+---
+
+<div class:list={['space-y-5 md:space-y-6', align === 'center' && 'mx-auto max-w-2xl text-center']}>
+  <h2 class="poster-title text-balance text-3xl text-[var(--brand-purple)] md:text-4xl">{title}</h2>
+  {copy ? <p class="max-w-2xl text-sm leading-8 text-[var(--brand-ink-soft)] md:text-base">{copy}</p> : null}
+</div>

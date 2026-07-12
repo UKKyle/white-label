@@ -1,0 +1,65 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/PageHero.astro';
+import { buildCustomerSessionCookie, createCustomerSession, getAccountByEmail, linkHistoricalOrdersForAccount, verifyPassword } from '../../lib/customerAccountAuth';
+import { getAdapterEnv } from '../../lib/runtimeEnv';
+import { routes } from '../../lib/routes';
+import { checkRateLimit, requestKey } from '../../security/rate-limit';
+import { sanitizeEmail } from '../../security/sanitize';
+
+export const prerender = false;
+
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const email = sanitizeEmail(form.get('email'));
+  const emailAttemptKey = `${Astro.url.pathname}:email:${email || 'blank'}`;
+
+  if (!checkRateLimit(requestKey(Astro.request), 6, 60_000) || !checkRateLimit(emailAttemptKey, 8, 15 * 60_000)) {
+    error = 'Please wait a moment before trying again.';
+  } else {
+    const password = String(form.get('password') ?? '');
+    const env = getAdapterEnv(Astro);
+    const account = await getAccountByEmail(env, email);
+    const ok = account?.status === 'active' && await verifyPassword(password, account.passwordHash);
+
+    if (ok && account) {
+      if (!account.emailVerified) {
+        error = 'Please verify your email before signing in.';
+      } else {
+        await linkHistoricalOrdersForAccount(env, account);
+        const { token } = await createCustomerSession(env, account);
+        return new Response(null, {
+          status: 303,
+          headers: {
+            Location: routes.account,
+            'Set-Cookie': buildCustomerSessionCookie(env, token),
+          },
+        });
+      }
+    } else {
+      error = 'Email or password is incorrect.';
+    }
+  }
+}
+---
+
+<Layout title="Sign In | The Crumb Works" description="Sign in to your The Crumb Works customer account.">
+  <PageHero align="center" title="Sign In" />
+  <section class="warm-stage px-3 pb-18 pt-4 md:px-4">
+    <div class="mx-auto max-w-xl">
+      <form method="post" class="premium-form-card space-y-4">
+        {error && <p class="rounded-[12px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+        <label class="premium-field"><span>Email</span><input class="input-shell" name="email" type="email" autocomplete="email" required /></label>
+        <label class="premium-field"><span>Password</span><input class="input-shell" name="password" type="password" autocomplete="current-password" required /></label>
+        <button class="w-full rounded-[10px] bg-[var(--brand-ink)] px-6 py-3 text-sm font-semibold text-white" type="submit">Sign in</button>
+        <div class="flex flex-wrap justify-center gap-4 text-sm">
+          <a class="font-semibold text-[var(--brand-purple)]" href={routes.accountSignUp}>Create account</a>
+          <a class="font-semibold text-[var(--brand-purple)]" href={routes.accountForgotPassword}>Forgot password?</a>
+          <a class="font-semibold text-[var(--brand-purple)]" href="/account/resend-verification">Resend verification</a>
+        </div>
+      </form>
+    </div>
+  </section>
+</Layout>

@@ -1,0 +1,242 @@
+---
+import { brand } from '../data/site';
+import { businessConfig } from '../config/business';
+
+const lastUpdated = '8 July 2026';
+
+const sections = [
+  {
+    title: `About ${businessConfig.name}`,
+    paragraphs: [
+      'The Crumb Works provides handmade desserts, celebration cakes, cupcakes, cookies, brownies, treat boxes and custom bakes for birthdays, gifting, events and everyday celebrations.',
+      'All products are made or arranged subject to availability, order confirmation, required notice periods and our current capacity.'
+    ]
+  },
+  {
+    title: 'Placing an order',
+    paragraphs: [
+      'Orders and enquiries may be submitted through our website, contact form, WhatsApp, email, social media or any future online checkout flow we make available.',
+      'Submitting an enquiry does not automatically confirm an order. Your order is only confirmed once The Crumb Works has accepted it and any required payment or deposit has been received.'
+    ],
+    list: [
+      'All orders are subject to availability.',
+      'Short-notice orders may not always be possible.',
+      'Custom, themed or larger celebration orders may need additional notice.'
+    ]
+  },
+  {
+    title: 'Custom orders',
+    paragraphs: [
+      'Celebration cakes, themed bakes and personalised designs are made by hand and may include custom colours, names, messages, toppers or decorative finishes.',
+      'Inspiration photos are welcome as a guide, but exact replication is not guaranteed. Small differences in colour, decoration, layout, finish, size and presentation may happen as part of the handmade process.'
+    ],
+    list: [
+      'Customers are responsible for checking names, spellings, ages, dates, themes and messages before confirming an order.',
+      'Please provide accurate allergy information, collection details and delivery details when ordering.',
+      'We may adapt some design details where needed to suit size, structure, ingredients or availability.'
+    ]
+  },
+  {
+    title: 'Pricing, deposits and payment',
+    paragraphs: [
+      'Prices may vary depending on size, design complexity, ingredients, finish, notice period, customisation and delivery requirements.',
+      'Some products may have a set price, while custom orders may require an individual quote.'
+    ],
+    list: [
+      'A deposit or full payment may be required to secure an order.',
+      'Orders are not guaranteed until they have been confirmed by us.',
+      'Final payment may be required before collection or delivery.',
+      'Website prices, example pricing and product details may be updated from time to time.'
+    ]
+  },
+  {
+    title: 'Changes to orders',
+    paragraphs: [
+      'If you need to change the design, flavour, size, date or delivery arrangements for a confirmed order, please contact us as soon as possible.',
+      'Changes are not guaranteed and will depend on availability, preparation stage and the amount of work already completed.'
+    ],
+    list: [
+      'Late changes may not be possible.',
+      'Additional changes may affect the final price.',
+      'We will always try to help where we reasonably can.'
+    ]
+  },
+  {
+    title: 'Cancellations and refunds',
+    paragraphs: [
+      'Because many of our products are personalised, handmade or perishable, cancellation and refund requests are handled carefully and on a case-by-case basis.',
+      'Custom and personalised orders may not be refundable once planning, design work, ingredient ordering, preparation or production has started.'
+    ],
+    list: [
+      'Customer cancellations close to the agreed date may result in a deposit or full payment being retained where costs have already been incurred.',
+      'Perishable products are generally not suitable for return once collected or delivered.',
+      'If The Crumb Works needs to cancel an order, we will contact you as soon as possible and arrange an appropriate refund where applicable.'
+    ]
+  },
+  {
+    title: 'Collection',
+    paragraphs: [
+      'Collection times and collection locations should be agreed in advance. Please arrive at the arranged time where possible so your order can be handed over in the best condition.',
+      'Once an order has been collected, responsibility for safe transport, storage and handling passes to the customer.'
+    ],
+    list: [
+      'Cakes and desserts should be kept level, cool and secure during transport.',
+      'Please follow any transport or storage guidance we provide.',
+      'We are not responsible for damage caused after collection due to transport, handling, storage or customer error.'
+    ]
+  },
+  {
+    title: 'Delivery',
+    paragraphs: [
+      'Delivery may be available within reasonable local areas, depending on availability, distance and the nature of the order.',
+      'Delivery availability and charges should be confirmed before an order is accepted.'
+    ],
+    list: [
+      'Delivery times may be estimates where necessary.',
+      'Customers are responsible for providing accurate delivery details and ensuring someone is available to receive the order.',
+      'Failed delivery caused by incorrect information or nobody being available may still be chargeable.'
+    ]
+  },
+  {
+    title: 'Allergens and dietary information',
+    emphasis: true,
+    paragraphs: [
+      'Allergen information is available before ordering. Customers must contact The Crumb Works before ordering if they have allergies, intolerances or dietary requirements.',
+      'Our products may contain or come into contact with common allergens including milk, eggs, gluten/wheat, soya, nuts, peanuts and other allergens. While we take care in preparation, we cannot guarantee an allergen-free environment.'
+    ],
+    list: [
+      'Allergy information can be provided before ordering.',
+      'If you are unsure whether a product is suitable for an allergy or dietary requirement, please contact us before ordering.',
+      'Please check any label or accompanying information before consuming.',
+      'We may be unable to fulfil some allergy-safe or dietary requests.'
+    ]
+  },
+  {
+    title: 'Product appearance and handmade variation',
+    paragraphs: [
+      'All of our products are handmade, so slight variation in colour, finish, decoration, size, shape and presentation can happen.',
+      'Website, portfolio and social media images are examples of previous work and may not exactly match a future order.'
+    ],
+    list: [
+      'Seasonal ingredients, decorations and stock availability may affect the final result.',
+      'We may make reasonable design adjustments where needed while preserving the overall style of your order.'
+    ]
+  },
+  {
+    title: 'Storage and consumption',
+    paragraphs: [
+      'Please follow any storage guidance provided at collection or delivery and consume products within the advised timeframe for best quality and safety.',
+      'We are not responsible for issues caused by incorrect storage, leaving products in heat, delayed consumption or mishandling after collection or delivery.'
+    ]
+  },
+  {
+    title: 'Order issues and statutory rights',
+    paragraphs: [
+      'If there is an issue with an order, please contact The Crumb Works as soon as possible on the day of collection or delivery so we can review it fairly. Where relevant, please include clear photos and keep the product and packaging available for review.',
+      'We will consider issues reasonably, taking into account the nature of handmade and perishable products, the agreed order details and any handling or storage guidance provided.',
+      'Nothing in these Terms & Conditions affects your statutory rights.'
+    ],
+    list: [
+      `${businessConfig.name} can be contacted at ${brand.email}.`
+    ]
+  },
+  {
+    title: 'Website information',
+    paragraphs: [
+      'The Crumb Works website is provided for general information about our products and services.',
+      'We aim to keep information accurate and up to date, but product availability, descriptions, pricing, imagery and page content may change over time.'
+    ],
+    list: [
+      'Product pages and examples may be updated or removed.',
+      'Images are for guidance and inspiration only.',
+      'We cannot guarantee that every page or detail will always reflect current live availability.'
+    ]
+  },
+  {
+    title: 'Use of photos and marketing',
+    paragraphs: [
+      'We may photograph finished products for use in our portfolio, website, social media and marketing materials.',
+      'We will avoid sharing personal customer details unless permission has been given.'
+    ],
+    list: [
+      'If you would prefer a particular product not to be photographed or shared, please let us know before your order is completed.'
+    ]
+  }
+];
+
+interface Props {
+  variant?: 'page' | 'modal';
+}
+
+const { variant = 'page' } = Astro.props;
+const isModal = variant === 'modal';
+const cardClass = isModal
+  ? 'terms-content__card terms-content__card--modal'
+  : 'terms-content__card terms-content__card--page';
+---
+
+<div class:list={['terms-content', isModal ? 'terms-content--modal' : 'terms-content--page']}>
+  {!isModal && (
+    <div class="terms-content__intro">
+      <div class="terms-content__meta">
+        <p class="policy-kicker">Last updated</p>
+        <p class="terms-content__updated">{lastUpdated}</p>
+      </div>
+      <div class="terms-content__summary">
+        <h2 class="policy-heading">A warm guide to orders, payments and bakery care</h2>
+        <p>
+          These terms explain how orders, payments, cancellations, collections, deliveries, custom designs and allergy information are handled at {businessConfig.name}.
+        </p>
+      </div>
+      <div class="terms-content__quicklinks">
+        <a href="/" class="terms-content__pill">Back to homepage</a>
+        <a href="/allergen-information" class="terms-content__pill">Allergen Information</a>
+        <a href="/contact" class="terms-content__pill terms-content__pill--primary">Contact us</a>
+      </div>
+    </div>
+  )}
+
+  {sections.map((section, index) => (
+    <div
+      class:list={[
+        cardClass,
+        section.emphasis && 'terms-content__card--alert'
+      ]}
+    >
+      <div class="policy-stack">
+        <p class="policy-kicker">Section {index + 1}</p>
+        {index === 0 && !isModal ? (
+          <h2 class="policy-heading">{section.title}</h2>
+        ) : (
+          <h3 class="policy-heading">{section.title}</h3>
+        )}
+        {section.paragraphs.map((paragraph) => (
+          <p>{paragraph}</p>
+        ))}
+        {section.list && (
+          <ul class="policy-list">
+            {section.list.map((item) => (
+              <li>{item}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  ))}
+
+  {!isModal && (
+    <div class="terms-content__contact">
+      <div class="policy-stack">
+        <p class="policy-kicker">Questions?</p>
+        <h2 class="policy-heading">We are happy to help before you place an order</h2>
+        <p>
+          If you have any questions about these Terms &amp; Conditions, your order, allergens, delivery, collection or custom design details, please contact us before placing your order at <a href={`mailto:${brand.email}`} class="terms-content__text-link">{brand.email}</a>.
+        </p>
+        <div class="terms-content__actions">
+          <a href="/contact" class="terms-content__button">Contact {businessConfig.name}</a>
+          <a href="/" class="terms-content__text-link">Return to homepage</a>
+        </div>
+      </div>
+    </div>
+  )}
+</div>

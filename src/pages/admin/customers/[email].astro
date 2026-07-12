@@ -1,0 +1,250 @@
+---
+import AdminShell from '../../../components/admin/AdminShell.astro';
+import { getAdminSession } from '../../../lib/adminAuth';
+import { getAccountByEmail } from '../../../lib/customerAccountAuth';
+import { getCustomerByEmail } from '../../../lib/customerStore';
+import { formatPrice } from '../../../lib/format';
+import { getLoyaltyBalance, listLoyaltyLedger } from '../../../lib/loyalty';
+import {
+  formatOrderAdminStatusLabel,
+} from '../../../lib/orderService';
+import { listOrderRecords, type OrderRecord } from '../../../lib/orderStore';
+import { getAdapterEnv } from '../../../lib/runtimeEnv';
+import { routes } from '../../../lib/routes';
+import { sanitizeText } from '../../../security/sanitize';
+import '../../../styles/global.css';
+
+export const prerender = false;
+
+let session = null;
+
+try {
+  session = await getAdminSession(Astro);
+} catch {
+  session = null;
+}
+
+if (!session) {
+  return Astro.redirect(routes.adminLogin);
+}
+
+const email = sanitizeText(decodeURIComponent(Astro.params.email ?? '')).trim().toLowerCase().slice(0, 320);
+const env = getAdapterEnv(Astro);
+const customer = await getCustomerByEmail(env, email);
+
+if (!customer) {
+  return Astro.redirect(routes.adminCustomers);
+}
+
+let matchingOrders: OrderRecord[] = [];
+const account = await getAccountByEmail(env, customer.email);
+const loyaltyBalance = account ? await getLoyaltyBalance(env, account.id) : null;
+const loyaltyEntries = account ? await listLoyaltyLedger(env, account.id, 5) : [];
+
+try {
+  const orders = await listOrderRecords(env);
+  matchingOrders = orders
+    .filter((order) => order.customer.email.trim().toLowerCase() === customer.email)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+} catch {
+  matchingOrders = [];
+}
+
+const dateFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date);
+}
+
+function sourceLabel(source: string) {
+  if (source === 'customer_account') return 'Customer account';
+  return source === 'signup_popup' ? 'Signup popup' : source;
+}
+
+function fulfilmentLabel(order: OrderRecord) {
+  if (order.customer.fulfilmentMethod === 'delivery') return 'Delivery';
+  if (order.customer.fulfilmentMethod === 'pos') return 'Point of Sale';
+  return 'Collection';
+}
+
+const totalSpendPence = matchingOrders.reduce((total, order) => total + order.totalPence, 0);
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{customer.email} | Customers | Crumb Works Admin</title>
+  </head>
+  <body class="font-body">
+    <AdminShell
+      activeNav="customers"
+      pageTitle="Customer profile"
+      pageSubtitle="Customers"
+      searchAction={routes.adminCustomers}
+      sessionEmail={session.email}
+    >
+      <Fragment slot="actions">
+        <a href={routes.adminCustomers} class="rounded-2xl border border-black/8 bg-white px-4 py-2.5 text-sm font-semibold text-[#202223] transition hover:border-black/20">
+          Back to customers
+        </a>
+      </Fragment>
+
+      <section class="grid gap-5 xl:grid-cols-[0.76fr_1.24fr]">
+        <aside class="space-y-5">
+          <article class="rounded-[24px] border border-black/6 bg-white p-6 shadow-[0_12px_32px_rgba(0,0,0,0.04)]">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="text-sm font-medium text-[#6d7175]">Customer</p>
+                <h2 class="mt-2 break-all text-2xl font-semibold text-[#202223]">{customer.email}</h2>
+              </div>
+              <span class:list={[
+                'shrink-0 rounded-full px-3 py-1 text-xs font-semibold',
+                customer.marketingOptIn ? 'bg-[#e7f7ed] text-[#0f6b2f]' : 'bg-[#f1f1f1] text-[#5f6368]',
+              ]}>
+                {customer.marketingOptIn ? 'Subscribed' : 'Not subscribed'}
+              </span>
+            </div>
+
+            <dl class="mt-6 grid gap-4 text-sm">
+              <div>
+                <dt class="font-medium text-[#6d7175]">Source</dt>
+                <dd class="mt-1 text-[#202223]">{sourceLabel(customer.source)}</dd>
+              </div>
+              <div>
+                <dt class="font-medium text-[#6d7175]">Created</dt>
+                <dd class="mt-1 text-[#202223]">{formatDate(customer.createdAt)}</dd>
+              </div>
+              <div>
+                <dt class="font-medium text-[#6d7175]">Last activity</dt>
+                <dd class="mt-1 text-[#202223]">{formatDate(customer.updatedAt)}</dd>
+              </div>
+              <div>
+                <dt class="font-medium text-[#6d7175]">Signup count</dt>
+                <dd class="mt-1 text-[#202223]">{customer.signupCount}</dd>
+              </div>
+            </dl>
+          </article>
+
+          <article class="rounded-[24px] border border-black/6 bg-white p-6 shadow-[0_12px_32px_rgba(0,0,0,0.04)]">
+            <p class="text-sm font-medium text-[#6d7175]">Orders</p>
+            <p class="mt-3 text-[2rem] font-semibold text-[#202223]">{matchingOrders.length}</p>
+            <p class="mt-1 text-sm text-[#6d7175]">Total order value {formatPrice(totalSpendPence / 100)}</p>
+          </article>
+
+          <article class="rounded-[24px] border border-black/6 bg-white p-6 shadow-[0_12px_32px_rgba(0,0,0,0.04)]">
+            <p class="text-sm font-medium text-[#6d7175]">Loyalty Points</p>
+            {loyaltyBalance ? (
+              <>
+                <p class="mt-3 text-[2rem] font-semibold text-[#202223]">{loyaltyBalance.points} points</p>
+                <p class="mt-1 text-sm text-[#6d7175]">Worth {formatPrice(loyaltyBalance.pence / 100)} · Redeemed {loyaltyBalance.redeemedPoints} points</p>
+                {loyaltyEntries.length > 0 && (
+                  <div class="mt-4 divide-y divide-black/6 text-sm">
+                    {loyaltyEntries.map((entry) => (
+                      <div class="flex justify-between gap-4 py-2">
+                        <span class="text-[#4c4f52]">{entry.description}</span>
+                        <span class="font-semibold text-[#202223]">{entry.points >= 0 ? '+' : ''}{entry.points}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <p class="mt-2 text-sm text-[#6d7175]">No registered account is linked to this customer yet.</p>
+            )}
+          </article>
+        </aside>
+
+        <section class="rounded-[24px] border border-black/6 bg-white shadow-[0_12px_32px_rgba(0,0,0,0.04)]">
+          <div class="border-b border-black/6 px-5 py-4">
+            <h2 class="text-base font-semibold text-[#202223]">Signup discount</h2>
+            <p class="mt-1 text-sm text-[#6d7175]">Customer-specific 10% code details.</p>
+          </div>
+          <div class="grid gap-4 border-b border-black/6 px-5 py-5 text-sm md:grid-cols-2">
+            <div>
+              <p class="font-medium text-[#6d7175]">Discount code</p>
+              <p class="mt-1 font-semibold text-[#202223]">{customer.discountCode || 'No signup discount'}</p>
+            </div>
+            <div>
+              <p class="font-medium text-[#6d7175]">Status</p>
+              <p class="mt-1 text-[#202223]">{customer.discountCode ? customer.discountStatus === 'used' ? 'Used' : 'Unused' : 'Not issued'}</p>
+            </div>
+            <div>
+              <p class="font-medium text-[#6d7175]">Discount</p>
+              <p class="mt-1 text-[#202223]">{customer.discountPercent ? `${customer.discountPercent}%` : 'None'}</p>
+            </div>
+            <div>
+              <p class="font-medium text-[#6d7175]">Minimum subtotal</p>
+              <p class="mt-1 text-[#202223]">{customer.discountMinimumSubtotalPence ? formatPrice(customer.discountMinimumSubtotalPence / 100) : 'None'}</p>
+            </div>
+            <div>
+              <p class="font-medium text-[#6d7175]">Created</p>
+              <p class="mt-1 text-[#202223]">{customer.discountCreatedAt ? formatDate(customer.discountCreatedAt) : 'Not issued'}</p>
+            </div>
+            <div>
+              <p class="font-medium text-[#6d7175]">Used</p>
+              <p class="mt-1 text-[#202223]">{customer.discountUsedAt ? formatDate(customer.discountUsedAt) : 'Not used'}</p>
+            </div>
+            <div class="md:col-span-2">
+              <p class="font-medium text-[#6d7175]">Used order</p>
+              {customer.discountUsedOrderReference ? (
+                <a href={routes.adminOrderDetail(customer.discountUsedOrderReference)} class="mt-1 inline-flex font-semibold text-[#202223] underline">
+                  {customer.discountUsedOrderReference}
+                </a>
+              ) : (
+                <p class="mt-1 text-[#202223]">None</p>
+              )}
+            </div>
+          </div>
+
+          <div class="border-b border-black/6 px-5 py-4">
+            <h2 class="text-base font-semibold text-[#202223]">Order history</h2>
+            <p class="mt-1 text-sm text-[#6d7175]">Matched by customer email address.</p>
+          </div>
+
+          {matchingOrders.length ? (
+            <div class="overflow-x-auto">
+              <table class="min-w-full border-separate border-spacing-0 text-left text-sm">
+                <thead class="bg-[#f7f7f7] text-xs uppercase tracking-[0.12em] text-[#6d7175]">
+                  <tr>
+                    <th class="px-5 py-3 font-semibold">Order</th>
+                    <th class="px-5 py-3 font-semibold">Date</th>
+                    <th class="px-5 py-3 font-semibold">Status</th>
+                    <th class="px-5 py-3 font-semibold">Total</th>
+                    <th class="px-5 py-3 font-semibold">Fulfilment</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-black/6">
+                  {matchingOrders.map((order) => (
+                    <tr class="transition hover:bg-[#fafafa]">
+                      <td class="px-5 py-4">
+                        <a href={routes.adminOrderDetail(order.reference)} class="font-semibold text-[#202223] hover:underline">{order.reference}</a>
+                      </td>
+                      <td class="px-5 py-4 text-[#4c4f52]">{formatDate(order.createdAt)}</td>
+                      <td class="px-5 py-4 text-[#4c4f52]">{formatOrderAdminStatusLabel(order.orderStatus)}</td>
+                      <td class="px-5 py-4 text-[#4c4f52]">{formatPrice(order.totalPence / 100)}</td>
+                      <td class="px-5 py-4 text-[#4c4f52]">{fulfilmentLabel(order)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div class="px-5 py-12 text-center">
+              <p class="text-base font-semibold text-[#202223]">No matching orders yet</p>
+              <p class="mt-2 text-sm text-[#6d7175]">Orders will appear here when their customer email matches this signup.</p>
+            </div>
+          )}
+        </section>
+      </section>
+    </AdminShell>
+  </body>
+</html>

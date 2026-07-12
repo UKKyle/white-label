@@ -1,0 +1,34 @@
+---
+import { brand, navItems } from '../data/site';
+import { businessConfig } from '../config/business';
+---
+
+<footer class="border-t border-[#f3cad9] bg-[linear-gradient(180deg,#fff7ef_0%,#fff0f6_100%)]">
+  <div class="site-shell mx-auto grid max-w-7xl gap-12 py-14 md:grid-cols-[1.3fr_0.7fr] md:py-16">
+    <div class="space-y-5">
+      <div>
+        <img src={businessConfig.branding.logoPath} alt={businessConfig.name} class="h-16 w-16 object-contain" loading="lazy" decoding="async" width="1080" height="1080" />
+      </div>
+      <p class="max-w-xl text-sm leading-7 text-[var(--brand-ink-soft)]">
+        {businessConfig.content.footerBlurb}
+      </p>
+      <a class="inline-flex text-sm text-[var(--brand-purple)] transition hover:brightness-90" href={`mailto:${brand.email}`}>{brand.email}</a>
+    </div>
+    <div class="grid grid-cols-2 gap-10 text-sm text-[var(--brand-ink-soft)]">
+      <div class="space-y-4">
+        <p class="text-xs uppercase tracking-[0.25em] text-[var(--brand-ink-soft)]/70">Navigate</p>
+        {navItems.map((item) => (
+          <a class="block transition hover:text-[var(--brand-purple)]" href={item.href}>{item.label}</a>
+        ))}
+      </div>
+      <div class="space-y-4">
+        <p class="text-xs uppercase tracking-[0.25em] text-[var(--brand-ink-soft)]/70">Support</p>
+        <a class="block transition hover:text-[var(--brand-purple)]" href="/privacy">Privacy Policy</a>
+        <a class="block transition hover:text-[var(--brand-purple)]" href="/cookies-policy">Cookies Policy</a>
+        <a class="block transition hover:text-[var(--brand-purple)]" href="/terms">Terms &amp; Conditions</a>
+        <a class="block transition hover:text-[var(--brand-purple)]" href="/allergen-information">Allergen Information</a>
+        <a class="block transition hover:text-[var(--brand-purple)]" href="/contact">Contact</a>
+      </div>
+    </div>
+  </div>
+</footer>

@@ -1,0 +1,327 @@
+---
+import { businessConfig } from '../../config/business';
+
+type NavItem = {
+  id: string;
+  label: string;
+  href: string;
+  icon: string;
+};
+
+const {
+  activeNav = 'home',
+  pageTitle,
+  pageSubtitle = '',
+  searchAction = '/admin/orders',
+  searchQuery = '',
+  sessionEmail,
+} = Astro.props as {
+  activeNav?: string;
+  pageTitle: string;
+  pageSubtitle?: string;
+  searchAction?: string;
+  searchQuery?: string;
+  sessionEmail: string;
+};
+
+const primaryNav: NavItem[] = [
+  { id: 'home', label: 'Home', href: '/admin', icon: 'home' },
+  { id: 'orders', label: 'Orders', href: '/admin/orders', icon: 'orders' },
+  { id: 'customers', label: 'Customers', href: '/admin/customers', icon: 'customers' },
+  { id: 'online-store', label: 'Online Store', href: '/admin/online-store', icon: 'store' },
+  { id: 'availability', label: 'Availability', href: '/admin/availability', icon: 'calendar' },
+  { id: 'pos', label: 'Point of Sale', href: '/admin/pos', icon: 'pos' },
+  { id: 'images', label: 'Images', href: '/admin/images', icon: 'images' },
+  { id: 'settings', label: 'Settings', href: '/admin/settings', icon: 'settings' },
+];
+
+const initials = sessionEmail
+  .split('@')[0]
+  .split(/[^a-z0-9]+/i)
+  .filter(Boolean)
+  .slice(0, 2)
+  .map((part) => part[0]?.toUpperCase() ?? '')
+  .join('')
+  .slice(0, 2) || 'BM';
+---
+
+<style is:global>
+  html,
+  body {
+    margin: 0;
+    min-height: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+</style>
+
+<div class="min-h-dvh bg-[#f4f4f4] text-[#202223]">
+  <div class="flex min-h-dvh w-full bg-[#f2f2f2]">
+    <aside class="hidden h-dvh w-[290px] shrink-0 overflow-y-auto border-r border-black/6 bg-[#efefef] lg:flex lg:flex-col">
+      <div class="border-b border-black/6 bg-[#1d1d1d] px-6 py-5 text-white">
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#5a3312] text-sm font-bold tracking-[0.16em] text-[#f6e6d0]">
+            BM
+          </div>
+          <div>
+            <p class="text-[0.72rem] uppercase tracking-[0.24em] text-white/45">Admin</p>
+            <p class="text-lg font-semibold tracking-tight">{businessConfig.name}</p>
+          </div>
+        </div>
+      </div>
+
+      <nav class="flex-1 px-4 py-5">
+        <div class="space-y-1.5">
+          {primaryNav.map((item) => {
+            const isActive = item.id === activeNav;
+            const classes = [
+              'flex items-center gap-3 rounded-2xl px-4 py-3 text-[15px] leading-none transition',
+              isActive
+                ? 'bg-white font-semibold text-[#202223] shadow-[0_1px_0_rgba(255,255,255,0.8),0_6px_18px_rgba(0,0,0,0.04)]'
+                : 'text-[#4c4f52] hover:bg-white/80 hover:text-[#202223]',
+            ].join(' ');
+
+            const content = (
+              <>
+                <span class="inline-flex h-5 w-5 items-center justify-center text-[#474b4f]">
+                  {item.icon === 'home' && (
+                    <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M3 11 12 4l9 7"></path>
+                      <path d="M5 10.5V20h14v-9.5"></path>
+                      <path d="M9 20v-5h6v5"></path>
+                    </svg>
+                  )}
+                  {item.icon === 'orders' && (
+                    <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="3.5" y="5" width="17" height="14" rx="3"></rect>
+                      <path d="M7 10h10"></path>
+                      <path d="M7 14h6"></path>
+                    </svg>
+                  )}
+                  {item.icon === 'customers' && (
+                    <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <circle cx="9" cy="8" r="3"></circle>
+                      <path d="M3.5 19a5.5 5.5 0 0 1 11 0"></path>
+                      <path d="M16 11a2.5 2.5 0 0 0 0-5"></path>
+                      <path d="M18 18a4 4 0 0 0-2.6-3.75"></path>
+                    </svg>
+                  )}
+                  {item.icon === 'pos' && (
+                    <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="3.5" y="5" width="17" height="14" rx="3"></rect>
+                      <path d="M8 15h8"></path>
+                      <path d="M8 9h.01"></path>
+                      <path d="M12 9h.01"></path>
+                      <path d="M16 9h.01"></path>
+                    </svg>
+                  )}
+                  {item.icon === 'store' && (
+                    <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M4 10h16"></path>
+                      <path d="M5 10 6.3 4.8A1 1 0 0 1 7.27 4h9.46a1 1 0 0 1 .97.8L19 10"></path>
+                      <path d="M6 10v9h12v-9"></path>
+                      <path d="M9 19v-5h6v5"></path>
+                    </svg>
+                  )}
+                  {item.icon === 'calendar' && (
+                    <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="3.5" y="5" width="17" height="15" rx="3"></rect>
+                      <path d="M8 3.5v4"></path>
+                      <path d="M16 3.5v4"></path>
+                      <path d="M3.5 9.5h17"></path>
+                      <path d="M8 13h.01"></path>
+                      <path d="M12 13h.01"></path>
+                      <path d="M16 13h.01"></path>
+                      <path d="M8 17h.01"></path>
+                      <path d="M12 17h.01"></path>
+                    </svg>
+                  )}
+                  {item.icon === 'images' && (
+                    <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <rect x="3.5" y="5" width="17" height="14" rx="3"></rect>
+                      <circle cx="9" cy="10" r="1.5"></circle>
+                      <path d="m7 16 3.2-3.2a1.5 1.5 0 0 1 2.1 0L16 16"></path>
+                      <path d="m14 14 1.2-1.2a1.5 1.5 0 0 1 2.1 0L20 15.5"></path>
+                    </svg>
+                  )}
+                  {item.icon === 'settings' && (
+                    <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <circle cx="12" cy="12" r="3"></circle>
+                      <path d="M19.4 15a1.6 1.6 0 0 0 .32 1.76l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.6 1.6 0 0 0 15 19.4a1.6 1.6 0 0 0-1 .6 1.6 1.6 0 0 0-.4 1V21a2 2 0 1 1-4 0v-.08a1.6 1.6 0 0 0-.4-1 1.6 1.6 0 0 0-1-.6 1.6 1.6 0 0 0-1.76.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.6 1.6 0 0 0 4.6 15a1.6 1.6 0 0 0-.6-1 1.6 1.6 0 0 0-1-.4H3a2 2 0 1 1 0-4h.08a1.6 1.6 0 0 0 1-.4 1.6 1.6 0 0 0 .6-1 1.6 1.6 0 0 0-.32-1.76l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.6 1.6 0 0 0 9 4.6a1.6 1.6 0 0 0 1-.6 1.6 1.6 0 0 0 .4-1V3a2 2 0 1 1 4 0v.08a1.6 1.6 0 0 0 .4 1 1.6 1.6 0 0 0 1 .6 1.6 1.6 0 0 0 1.76-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.6 1.6 0 0 0 19.4 9c.29.26.49.6.6 1 .09.33.12.68.08 1.02-.03.34-.15.68-.36.98-.2.3-.48.55-.8.71.32.16.6.41.8.71.21.3.33.64.36.98.04.34.01.69-.08 1.02-.11.4-.31.74-.6 1z"></path>
+                    </svg>
+                  )}
+                </span>
+                <span>{item.label}</span>
+              </>
+            );
+
+            return <a href={item.href} class={classes}>{content}</a>;
+          })}
+        </div>
+
+      </nav>
+    </aside>
+
+    <div class="flex min-h-dvh min-w-0 flex-1 flex-col">
+      <header class="bg-[#1d1d1d] px-4 py-4 text-white md:px-6">
+        <div class="flex items-center gap-3">
+          <a href="/admin" class="flex items-center gap-3 lg:hidden">
+            <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#5a3312] text-sm font-bold tracking-[0.16em] text-[#f6e6d0]">
+              BM
+            </div>
+            <div>
+              <p class="text-[0.72rem] uppercase tracking-[0.24em] text-white/45">Admin</p>
+              <p class="text-base font-semibold tracking-tight">{businessConfig.name}</p>
+            </div>
+          </a>
+
+          <form action={searchAction} method="GET" class="mx-auto hidden max-w-[740px] flex-1 md:block">
+            <label class="flex items-center gap-3 rounded-[18px] border border-white/10 bg-white/10 px-4 py-3 text-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+              <svg viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"></circle>
+                <path d="m20 20-3.5-3.5"></path>
+              </svg>
+              <input
+                type="search"
+                name="q"
+                value={searchQuery}
+                placeholder="Search orders, customers, or references"
+                class="w-full bg-transparent text-sm text-white placeholder:text-white/42 focus:outline-none"
+              />
+              <span class="rounded-xl border border-white/10 bg-white/8 px-2 py-1 text-[11px] uppercase tracking-[0.18em] text-white/45">
+                Admin
+              </span>
+            </label>
+          </form>
+
+          <div class="ml-auto flex items-center gap-3">
+            <a href="/" class="hidden rounded-2xl border border-white/10 bg-white/6 px-3 py-2 text-sm font-medium text-white/72 transition hover:bg-white/12 hover:text-white md:inline-flex">
+              View site
+            </a>
+
+            <div class="flex items-center gap-3 rounded-[18px] bg-white/6 px-2 py-2 md:px-3">
+              <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#5ab2f0] text-sm font-semibold text-[#07344d]">
+                {initials}
+              </div>
+              <div class="hidden md:block">
+                <p class="text-sm font-semibold leading-none text-white">Admin</p>
+                <p class="mt-1 max-w-[180px] truncate text-xs text-white/48">{sessionEmail}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="min-w-0 flex-1 bg-[#f4f4f4] px-4 py-5 md:px-8 md:py-7">
+        <div class="w-full">
+          <div class="mb-5 flex flex-col gap-3 md:hidden">
+            <form action={searchAction} method="GET">
+              <label class="flex items-center gap-3 rounded-[18px] border border-black/8 bg-white px-4 py-3 text-[#5d6166] shadow-sm">
+                <svg viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="7"></circle>
+                  <path d="m20 20-3.5-3.5"></path>
+                </svg>
+                <input
+                  type="search"
+                  name="q"
+                  value={searchQuery}
+                  placeholder="Search orders"
+                  class="w-full bg-transparent text-sm text-[#202223] placeholder:text-[#8a9096] focus:outline-none"
+                />
+              </label>
+            </form>
+
+            <div class="flex gap-2 overflow-x-auto pb-1 text-sm">
+              <a
+                href="/admin"
+                class:list={[
+                  'rounded-2xl border px-4 py-2.5 whitespace-nowrap',
+                  activeNav === 'home' ? 'border-[#1d1d1d] bg-[#1d1d1d] font-semibold text-white' : 'border-black/8 bg-white text-[#202223]',
+                ]}
+              >
+                Home
+              </a>
+              <a
+                href="/admin/orders"
+                class:list={[
+                  'rounded-2xl border px-4 py-2.5 whitespace-nowrap',
+                  activeNav === 'orders' ? 'border-[#1d1d1d] bg-[#1d1d1d] font-semibold text-white' : 'border-black/8 bg-white text-[#202223]',
+                ]}
+              >
+                Orders
+              </a>
+              <a
+                href="/admin/customers"
+                class:list={[
+                  'rounded-2xl border px-4 py-2.5 whitespace-nowrap',
+                  activeNav === 'customers' ? 'border-[#1d1d1d] bg-[#1d1d1d] font-semibold text-white' : 'border-black/8 bg-white text-[#202223]',
+                ]}
+              >
+                Customers
+              </a>
+              <a
+                href="/admin/online-store"
+                class:list={[
+                  'rounded-2xl border px-4 py-2.5 whitespace-nowrap',
+                  activeNav === 'online-store' ? 'border-[#1d1d1d] bg-[#1d1d1d] font-semibold text-white' : 'border-black/8 bg-white text-[#202223]',
+                ]}
+              >
+                Online Store
+              </a>
+              <a
+                href="/admin/availability"
+                class:list={[
+                  'rounded-2xl border px-4 py-2.5 whitespace-nowrap',
+                  activeNav === 'availability' ? 'border-[#1d1d1d] bg-[#1d1d1d] font-semibold text-white' : 'border-black/8 bg-white text-[#202223]',
+                ]}
+              >
+                Availability
+              </a>
+              <a
+                href="/admin/pos"
+                class:list={[
+                  'rounded-2xl border px-4 py-2.5 whitespace-nowrap',
+                  activeNav === 'pos' ? 'border-[#1d1d1d] bg-[#1d1d1d] font-semibold text-white' : 'border-black/8 bg-white text-[#202223]',
+                ]}
+              >
+                Point of Sale
+              </a>
+              <a
+                href="/admin/images"
+                class:list={[
+                  'rounded-2xl border px-4 py-2.5 whitespace-nowrap',
+                  activeNav === 'images' ? 'border-[#1d1d1d] bg-[#1d1d1d] font-semibold text-white' : 'border-black/8 bg-white text-[#202223]',
+                ]}
+              >
+                Images
+              </a>
+              <a
+                href="/admin/settings"
+                class:list={[
+                  'rounded-2xl border px-4 py-2.5 whitespace-nowrap',
+                  activeNav === 'settings' ? 'border-[#1d1d1d] bg-[#1d1d1d] font-semibold text-white' : 'border-black/8 bg-white text-[#202223]',
+                ]}
+              >
+                Settings
+              </a>
+            </div>
+          </div>
+
+          <div class="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p class="text-sm font-semibold text-[#6d7175]">{pageSubtitle}</p>
+              <h1 class="mt-1 text-[2rem] font-semibold tracking-tight text-[#202223] md:text-[2.25rem]">{pageTitle}</h1>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <slot name="actions" />
+            </div>
+          </div>
+
+          <slot />
+        </div>
+      </main>
+    </div>
+  </div>
+</div>

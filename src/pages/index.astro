@@ -1,0 +1,179 @@
+---
+import FaqList from '../components/FaqList.astro';
+import ProductCard from '../components/ProductCard.astro';
+import SectionIntro from '../components/SectionIntro.astro';
+import Layout from '../layouts/Layout.astro';
+import { faqs, homepageHighlights, testimonials, trustPoints } from '../data/site';
+import { getManagedImageSrc } from '../lib/imageStore';
+import { withManagedProductImages, type ManagedImageId } from '../lib/managedImages';
+import { listOnlineStoreProducts } from '../lib/productStore';
+import { getAdapterEnv } from '../lib/runtimeEnv';
+import { buildSeo } from '../lib/seo';
+
+const seo = buildSeo('Home', 'Bespoke celebration cakes in Birmingham, plus cupcakes, brownies and sweet treat boxes by Crumb Works.');
+const env = getAdapterEnv(Astro);
+const baseProducts = await listOnlineStoreProducts(env);
+const managedImageSrcs = Object.fromEntries(await Promise.all(([
+  'home-hero-cake',
+  'home-highlight-cake',
+  'home-highlight-cookies',
+  'home-highlight-cupcakes',
+  'home-highlight-and-more',
+  'gallery-cake',
+  'gallery-cupcakes',
+  'gallery-brownies',
+  'product-cupcake-box',
+  'product-brownie-tray',
+  'product-mini-treat-box',
+] as ManagedImageId[]).map(async (id) => [id, await getManagedImageSrc(env, id)]))) as Record<ManagedImageId, string>;
+const products = withManagedProductImages(baseProducts, (id) => managedImageSrcs[id]);
+---
+
+<Layout title={seo.title} description={seo.description}>
+  <section class="purple-hero rainbow-bubble-stage isolate overflow-hidden px-3 pb-0 pt-32 md:px-4 md:pt-36" data-rainbow-parallax data-rainbow-depth="0.65" data-rainbow-direction="-1">
+    <div class="relative z-10 mx-auto max-w-7xl">
+      <div class="mx-auto max-w-3xl space-y-5 pb-10 text-center">
+        <h1 class="poster-title text-5xl text-white md:text-8xl">
+          Cakes, brownies and <span class="text-[var(--brand-pink)]">sweet boxes</span> made for real celebrations.
+        </h1>
+        <p class="mx-auto max-w-2xl text-base leading-8 text-white/80 md:text-xl">
+          Bespoke cakes, cupcakes, brownies and sweet boxes for Birmingham celebrations.
+        </p>
+        <div class="flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <a class="rounded-[10px] bg-[var(--brand-pink)] px-8 py-3 text-center text-sm font-semibold text-white transition hover:brightness-105" href="/products">
+            Shop the menu
+          </a>
+          <a class="rounded-[10px] border border-white/28 px-8 py-3 text-center text-sm font-semibold text-white" href="/contact">
+            Enquire for a cake
+          </a>
+        </div>
+      </div>
+
+      <div class="mx-auto max-w-5xl">
+        <div class="relative h-[280px] overflow-hidden rounded-t-[28px] md:h-[460px]">
+          <img
+            src={managedImageSrcs['home-hero-cake']}
+            alt="Celebration cake by Crumb Works"
+            class="h-full w-full object-cover object-center"
+            loading="eager"
+            decoding="async"
+            fetchpriority="high"
+            width="1920"
+            height="1080"
+          />
+          <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(42,10,104,0.12),rgba(42,10,104,0.2))]"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-white px-3 py-5 md:px-4">
+    <div class="mx-auto flex max-w-7xl snap-x snap-proximity flex-nowrap gap-4 overflow-x-auto pb-1">
+      {homepageHighlights.map((highlight) => (
+        <a href={highlight.href} class="flex min-w-[72vw] snap-start items-center justify-center rounded-[12px] border border-[#f3cad9] bg-white px-4 py-3 shadow-[0_2px_10px_rgba(36,29,66,0.05)] transition hover:-translate-y-0.5 hover:border-[var(--brand-pink)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-purple)]/30 sm:min-w-[15rem] md:min-w-0 md:flex-1">
+          <div class="text-center">
+            <img src={managedImageSrcs[highlight.imageId]} alt={`${highlight.label} by Crumb Works`} class="mx-auto mb-2 h-14 w-14 rounded-[10px] object-cover" loading="lazy" decoding="async" width="1080" height="1080" />
+            <p class="font-display text-2xl uppercase leading-none tracking-[0.02em] text-[var(--brand-purple)]">{highlight.label}</p>
+          </div>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <section class="bg-[var(--brand-lavender)] px-3 pb-14 md:px-4 md:pb-20">
+    <div class="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+      <div class="placeholder-pack p-6 md:p-8" data-rainbow-parallax data-rainbow-depth="1" data-rainbow-direction="1">
+        <div class="grid gap-6 md:grid-cols-[0.9fr_1.1fr]">
+          <div class="grid grid-cols-2 gap-3 py-4">
+            <img src={managedImageSrcs['gallery-cake']} alt="Custom cake by Crumb Works" class="h-36 w-full rounded-[16px] object-cover md:h-44" loading="lazy" decoding="async" width="1080" height="1350" />
+            <img src={managedImageSrcs['gallery-cupcakes']} alt="Cupcakes by Crumb Works" class="h-36 w-full rounded-[16px] object-cover md:h-44" loading="lazy" decoding="async" width="1080" height="1080" />
+            <img src={managedImageSrcs['gallery-brownies']} alt="Brownies by Crumb Works" class="col-span-2 h-32 w-full rounded-[16px] object-cover md:h-36" loading="lazy" decoding="async" width="1080" height="1080" />
+          </div>
+          <div class="flex flex-col justify-center text-center md:text-left">
+            <p class="poster-title text-4xl text-white md:text-6xl">
+              Cakes, cupcakes, brownies and more.
+            </p>
+            <div class="mt-6">
+              <a class="inline-flex rounded-[10px] bg-white px-6 py-3 text-sm font-semibold text-[var(--brand-purple)]" href="/products">
+                View all bakes
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid gap-5">
+        <div class="card-shell p-6">
+          <p class="poster-title text-3xl text-[var(--brand-purple)] md:text-4xl">Custom cake to brownie box, all in one place.</p>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+          {trustPoints.map((point) => (
+            <div class="card-shell p-5">
+              <p class="text-lg font-medium leading-7 text-[var(--brand-ink)]">{point}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-white px-3 py-18 md:px-4">
+    <div class="mx-auto max-w-7xl">
+      <SectionIntro
+        title="Shop favourite bakes"
+        copy="A quick route into the bakes customers order most."
+      />
+      <div class="mt-10 grid grid-cols-2 gap-3.5 md:gap-5 lg:grid-cols-3 lg:gap-6">
+        {products.map((product) => <ProductCard product={product} />)}
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-white px-3 py-18 md:px-4">
+    <div class="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1.15fr_0.85fr]">
+      <div class="placeholder-pack overflow-hidden p-7 md:p-10" data-rainbow-parallax data-rainbow-depth="0.75" data-rainbow-direction="-1">
+        <h2 class="poster-title max-w-xl text-4xl text-white md:text-6xl">Planning a birthday cake, party table or gift box?</h2>
+        <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+          <a class="rounded-[10px] bg-white px-6 py-3 text-center text-sm font-semibold text-[var(--brand-purple)]" href="/contact">Start your enquiry</a>
+          <a class="rounded-[10px] border border-white/30 px-6 py-3 text-center text-sm font-semibold text-white" href="/faq">Delivery & FAQs</a>
+        </div>
+      </div>
+      <div class="placeholder-pack p-4">
+        <div class="grid h-full grid-cols-2 gap-3">
+          <img src={managedImageSrcs['gallery-cake']} alt="Celebration cake detail" class="h-full min-h-[180px] w-full rounded-[16px] object-cover" loading="lazy" decoding="async" width="1080" height="1350" />
+          <img src={managedImageSrcs['product-cupcake-box']} alt="Cupcake box by Crumb Works" class="h-full min-h-[180px] w-full rounded-[16px] object-cover" loading="lazy" decoding="async" width="1024" height="1024" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-[var(--brand-lavender)] px-3 py-18 md:px-4">
+    <div class="mx-auto max-w-7xl">
+      <SectionIntro
+        title="Loved for sweet treats, cupcakes and fair prices"
+        copy=""
+      />
+      <div class="mt-10 grid gap-6 lg:grid-cols-3">
+        {testimonials.map((item) => (
+          <article class="card-shell p-6">
+            <p class="text-sm tracking-[0.22em] text-[var(--brand-pink)]">{'★'.repeat(item.rating)}</p>
+            <p class="mt-4 text-base leading-8 text-[var(--brand-ink)]">{item.quote}</p>
+            <div class="mt-6 border-t border-[#f3cad9] pt-4">
+              <p class="font-medium text-[var(--brand-ink)]">{item.name}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-white px-3 py-18 md:px-4">
+    <div class="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.85fr_1.15fr]">
+      <SectionIntro
+        title="Frequently Asked Questions"
+        copy=""
+      />
+      <FaqList items={faqs} />
+    </div>
+  </section>
+</Layout>

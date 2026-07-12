@@ -1,0 +1,876 @@
+---
+import AdminShell from '../../../components/admin/AdminShell.astro';
+import { createAdminCsrfToken, getAdminSession, isTrustedAdminOrigin, validateAdminCsrfToken } from '../../../lib/adminAuth';
+import { formatPrice } from '../../../lib/format';
+import { getManagedImageSrc, MAX_IMAGE_UPLOAD_BYTES, saveManagedImage, validateManagedImageFile } from '../../../lib/imageStore';
+import { productImageIdsBySlug } from '../../../lib/managedImages';
+import {
+  createOnlineStoreProduct,
+  getAvailableProductSlug,
+  getOnlineStoreProduct,
+  productImagePath,
+  productEditableDefaults,
+  saveOnlineStoreProductImage,
+  saveOnlineStoreProduct,
+  type ProductSaveInput,
+  type OnlineStoreProduct,
+} from '../../../lib/productStore';
+import { getAdapterEnv } from '../../../lib/runtimeEnv';
+import { routes } from '../../../lib/routes';
+import type { ProductVariant } from '../../../types/shop';
+import '../../../styles/global.css';
+
+export const prerender = false;
+
+let session = null;
+
+try {
+  session = await getAdminSession(Astro);
+} catch {
+  session = null;
+}
+
+if (!session) {
+  return Astro.redirect(routes.adminLogin);
+}
+
+const slug = String(Astro.params.slug ?? '').trim();
+const isNewProduct = slug === 'new';
+const env = getAdapterEnv(Astro);
+const blankProduct: OnlineStoreProduct = {
+  slug: '',
+  name: '',
+  category: '',
+  tagline: '',
+  price: 1,
+  enquireOnly: false,
+  accent: '#ff4cc7',
+  glow: '#ffd3e3',
+  image: '/images/crumb-works-logo-transparent.png',
+  imageAlt: 'Crumb Works product',
+  description: '',
+  features: ['Made to order'],
+  variants: undefined,
+  status: 'Active',
+  path: '/products/',
+  hasCmsOverride: false,
+};
+const product = isNewProduct ? blankProduct : await getOnlineStoreProduct(env, slug);
+
+if (!product) {
+  return Astro.redirect(`${routes.adminOnlineStore}?status=missing`);
+}
+
+const currentProduct = product;
+const actionStatus = Astro.url.searchParams.get('status')?.trim() ?? '';
+
+function cleanFormText(value: FormDataEntryValue | null, maxLength = 1200) {
+  return String(value ?? '')
+    .replace(/[<>]/g, '')
+    .trim()
+    .slice(0, maxLength);
+}
+
+function parseFeatures(value: string) {
+  const features = value
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[-*]\s*/, '').trim())
+    .filter(Boolean)
+    .slice(0, 12);
+
+  return features.length ? features : currentProduct.features;
+}
+
+function parseVariants(value: string) {
+  if (!value.trim()) {
+    return currentProduct.variants;
+  }
+
+  const variants = value
+    .split(/\r?\n/)
+    .map((line): ProductVariant | null => {
+      const [flavour = '', servingSize = '', priceValue = ''] = line.split('|').map((part) => part.replace(/[<>]/g, '').trim());
+      const price = Number(priceValue);
+
+      if (!flavour && !servingSize && !priceValue) {
+        return null;
+      }
+
+      if (!Number.isFinite(price) || price <= 0) {
+        return null;
+      }
+
+      const variant: ProductVariant = {
+        price: Math.round(price * 100) / 100,
+      } satisfies ProductVariant;
+
+      if (flavour) variant.flavour = flavour;
+      if (servingSize) variant.servingSize = servingSize;
+
+      return variant;
+    })
+    .filter((variant): variant is ProductVariant => variant !== null)
+    .slice(0, 24);
+
+  return variants.length ? variants : currentProduct.variants;
+}
+
+if (Astro.request.method === 'POST') {
+  const redirectTarget = isNewProduct ? routes.adminOnlineStoreNew : routes.adminOnlineStoreProduct(currentProduct.slug);
+
+  if (!isTrustedAdminOrigin(Astro.request)) {
+    return Astro.redirect(`${redirectTarget}?status=csrf`);
+  }
+
+  const formData = await Astro.request.formData();
+  const csrfToken = String(formData.get('csrf') ?? '');
+  const validCsrf = await validateAdminCsrfToken(Astro, session, csrfToken);
+
+  if (!validCsrf) {
+    return Astro.redirect(`${redirectTarget}?status=csrf`);
+  }
+
+  const price = Number(cleanFormText(formData.get('price'), 24));
+  const input: ProductSaveInput = {
+    ...productEditableDefaults(currentProduct),
+    name: cleanFormText(formData.get('name'), 120),
+    category: cleanFormText(formData.get('category'), 120),
+    tagline: cleanFormText(formData.get('tagline'), 220),
+    price,
+    enquireOnly: formData.get('enquireOnly') === 'on',
+    imageAlt: cleanFormText(formData.get('imageAlt'), 160),
+    description: cleanFormText(formData.get('description'), 1200),
+    features: parseFeatures(cleanFormText(formData.get('features'), 1800)),
+    variants: parseVariants(cleanFormText(formData.get('variants'), 2400)),
+  };
+
+  const imageFile = formData.get('image');
+  const imageId = productImageIdsBySlug[currentProduct.slug];
+
+  try {
+    if (imageId && imageFile instanceof File && imageFile.size > 0) {
+      await validateManagedImageFile(imageFile);
+    }
+
+    if (!imageId && imageFile instanceof File && imageFile.size > 0) {
+      await validateManagedImageFile(imageFile);
+    }
+
+    if (isNewProduct) {
+      const preferredSlug = cleanFormText(formData.get('slug'), 100);
+      const nextSlug = await getAvailableProductSlug(env, input.name, preferredSlug);
+
+      if (imageFile instanceof File && imageFile.size > 0) {
+        const image = await saveOnlineStoreProductImage(env, nextSlug, imageFile);
+        input.image = productImagePath(nextSlug, image.updatedAt);
+      }
+
+      const created = await createOnlineStoreProduct(env, {
+        ...input,
+        image: input.image,
+      }, nextSlug);
+
+      return Astro.redirect(`${routes.adminOnlineStoreProduct(created.slug)}?status=created`);
+    }
+
+    if (!imageId && imageFile instanceof File && imageFile.size > 0) {
+      const image = await saveOnlineStoreProductImage(env, currentProduct.slug, imageFile);
+      input.image = productImagePath(currentProduct.slug, image.updatedAt);
+    }
+
+    await saveOnlineStoreProduct(env, currentProduct.slug, input);
+
+    if (imageId && imageFile instanceof File && imageFile.size > 0) {
+      await saveManagedImage(env, imageId, imageFile);
+    }
+
+    return Astro.redirect(`${routes.adminOnlineStoreProduct(currentProduct.slug)}?status=saved`);
+  } catch (error) {
+    return Astro.redirect(`${redirectTarget}?status=${error instanceof Error && (error.name === 'ProductValidationError' || error.name === 'ImageValidationError') ? 'invalid' : 'storage'}`);
+  }
+}
+
+const csrfToken = await createAdminCsrfToken(Astro, session);
+const imageId = productImageIdsBySlug[currentProduct.slug];
+const currentImageSrc = imageId ? await getManagedImageSrc(env, imageId) : currentProduct.image;
+const maxUploadMb = Math.floor(MAX_IMAGE_UPLOAD_BYTES / 1024 / 1024);
+const featuresText = currentProduct.features.join('\n');
+const variantsText = (currentProduct.variants ?? []).map((variant) => `${variant.flavour ?? ''} | ${variant.servingSize ?? ''} | ${variant.price}`).join('\n');
+const variantsJson = JSON.stringify(currentProduct.variants ?? []);
+const flavourOptions = [...new Set((currentProduct.variants ?? []).map((variant) => variant.flavour).filter(Boolean))];
+const servingSizeOptions = [...new Set((currentProduct.variants ?? []).map((variant) => variant.servingSize).filter(Boolean))];
+const formatDate = (value?: string) => {
+  if (!value) return 'Default product content';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Saved product content';
+
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+};
+const bannerMessage = actionStatus === 'saved'
+  ? 'Product saved. The public product page now uses the updated content.'
+  : actionStatus === 'created'
+    ? 'Product created. The public product page is now live.'
+  : actionStatus === 'invalid'
+    ? 'Check the required fields, price, variant rows, and image file type before saving again.'
+    : actionStatus === 'csrf'
+      ? 'Your admin session could not verify that request. Please try again.'
+      : actionStatus === 'storage'
+        ? 'Product storage could not save that change. Existing live product content was preserved.'
+        : '';
+const successStatus = actionStatus === 'saved' || actionStatus === 'created';
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{isNewProduct ? 'Add product' : currentProduct.name} | Online Store | Admin Dashboard | Crumb Works</title>
+  </head>
+
+  <body class="font-body">
+    <AdminShell
+      activeNav="online-store"
+      pageTitle={isNewProduct ? 'Add product' : currentProduct.name}
+      pageSubtitle="Online Store product editor"
+      searchAction={routes.adminOnlineStore}
+      sessionEmail={session.email}
+    >
+      <Fragment slot="actions">
+        <a
+          href={routes.adminOnlineStore}
+          class="rounded-2xl border border-black/8 bg-white px-4 py-2.5 text-sm font-semibold text-[#202223] shadow-sm transition hover:bg-[#fafafa]"
+        >
+          Back to products
+        </a>
+        {!isNewProduct && (
+          <a
+            href={currentProduct.path}
+            class="rounded-2xl border border-black/8 bg-white px-4 py-2.5 text-sm font-semibold text-[#202223] shadow-sm transition hover:bg-[#fafafa]"
+          >
+            View page
+          </a>
+        )}
+      </Fragment>
+
+      {bannerMessage && (
+        <div class:list={[
+          'mb-4 rounded-[22px] border px-5 py-4 text-sm font-semibold shadow-[0_10px_30px_rgba(0,0,0,0.04)]',
+          successStatus ? 'border-[#b8e6cc] bg-[#ecfff4] text-[#0f6b3f]' : 'border-[#f2b8b5] bg-[#fff0f0] text-[#a12018]',
+        ]}>
+          {bannerMessage}
+        </div>
+      )}
+
+      <form method="POST" enctype="multipart/form-data" class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]" data-product-editor data-variants={variantsJson}>
+        <input type="hidden" name="csrf" value={csrfToken} />
+
+        <div class="space-y-5">
+          <section class="rounded-[26px] border border-black/6 bg-white shadow-[0_18px_44px_rgba(0,0,0,0.05)]">
+            <div class="border-b border-black/6 px-5 py-5 md:px-6">
+              <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p class="text-sm font-semibold text-[#6d7175]">Product details</p>
+                  <h2 class="mt-1 text-2xl font-semibold tracking-tight text-[#202223]">{isNewProduct ? 'Create a live product' : 'Content shown on the website'}</h2>
+                </div>
+                <span class="inline-flex w-fit rounded-full bg-[#f1f1f1] px-3 py-1 text-xs font-semibold text-[#4c4f52]">
+                  {currentProduct.path}
+                </span>
+              </div>
+            </div>
+
+            <div class="grid gap-5 p-5 md:grid-cols-2 md:p-6">
+              {isNewProduct && (
+                <label class="block md:col-span-2">
+                  <span class="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">URL slug</span>
+                  <input name="slug" placeholder="Leave blank to generate from the product name" class="h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" />
+                </label>
+              )}
+
+              <label class="block md:col-span-2">
+                <span class="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Product name</span>
+                <input name="name" value={currentProduct.name} class="h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" required />
+              </label>
+
+              <label class="block">
+                <span class="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Price</span>
+                <input name="price" type="number" min="0.01" step="0.01" value={String(currentProduct.price)} class="h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" required />
+              </label>
+
+              <label class="block">
+                <span class="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Category</span>
+                <input name="category" value={currentProduct.category} class="h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" required />
+              </label>
+
+              <label class="block md:col-span-2">
+                <span class="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Fulfilment mode</span>
+                <span class="flex items-start gap-3 rounded-[18px] border border-black/8 bg-[#fbfbfb] px-4 py-4">
+                  <input
+                    name="enquireOnly"
+                    type="checkbox"
+                    class="mt-1 h-4 w-4 rounded border-black/20 accent-[#1d1d1d]"
+                    checked={currentProduct.enquireOnly}
+                  />
+                  <span class="block">
+                    <span class="block text-sm font-semibold text-[#202223]">Enquire only</span>
+                    <span class="mt-1 block text-sm leading-6 text-[#6d7175]">
+                      When enabled, this product cannot be added to cart and customers will be directed to enquire instead.
+                    </span>
+                  </span>
+                </span>
+              </label>
+
+              <label class="block md:col-span-2">
+                <span class="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Short description</span>
+                <input name="tagline" value={currentProduct.tagline} class="h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" required />
+              </label>
+
+              <label class="block md:col-span-2">
+                <span class="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Full description</span>
+                <textarea name="description" rows="5" class="w-full rounded-[14px] border border-black/10 bg-white px-3 py-3 text-sm leading-6 text-[#202223] outline-none focus:border-[#1d1d1d]" required>{currentProduct.description}</textarea>
+              </label>
+            </div>
+          </section>
+
+          <section class="rounded-[26px] border border-black/6 bg-white shadow-[0_18px_44px_rgba(0,0,0,0.05)]">
+            <div class="border-b border-black/6 px-5 py-5 md:px-6">
+              <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p class="text-sm font-semibold text-[#6d7175]">Media</p>
+                  <h2 class="mt-1 text-2xl font-semibold tracking-tight text-[#202223]">Product image</h2>
+                </div>
+                <p class="text-sm text-[#6d7175]">Current image stays live until Save is pressed.</p>
+              </div>
+            </div>
+
+            <div class="grid gap-5 p-5 md:grid-cols-[220px_minmax(0,1fr)] md:p-6">
+              <div>
+                <p class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Current live image</p>
+                <div class="overflow-hidden rounded-[18px] border border-black/8 bg-[#f7f7f7]">
+                  <img src={currentImageSrc} alt={currentProduct.imageAlt} class="aspect-square w-full object-cover" loading="lazy" />
+                </div>
+                <span class="mt-3 inline-flex rounded-full bg-[#e8f5ef] px-3 py-1 text-xs font-semibold text-[#0f6b3f]">Live now</span>
+              </div>
+
+              <div class="grid gap-5 md:grid-cols-2">
+                <label class="block md:col-span-2">
+                  <span class="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Image alt text</span>
+                  <input name="imageAlt" value={currentProduct.imageAlt} class="h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" required />
+                </label>
+
+                <div>
+                  <p class="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Replacement preview</p>
+                  <div class="overflow-hidden rounded-[18px] border border-dashed border-black/16 bg-[#fbfbfb]">
+                    <img src="" alt="" class="hidden aspect-square w-full object-cover" data-replacement-preview />
+                    <div class="flex aspect-square items-center justify-center px-5 text-center text-sm font-medium leading-6 text-[#8a9096]" data-empty-preview>
+                      Choose an image to preview it here before saving.
+                    </div>
+                  </div>
+                  <p class="mt-2 truncate text-xs text-[#6d7175]" data-file-name>No replacement selected</p>
+                </div>
+
+                <div class="flex flex-col justify-end gap-3">
+                  <label class="block">
+                    <span class="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Upload replacement</span>
+                    <input
+                      type="file"
+                      name="image"
+                      accept="image/jpeg,image/png,image/webp,image/avif"
+                      class="block w-full rounded-[16px] border border-black/8 bg-white px-3 py-3 text-sm text-[#202223] file:mr-3 file:rounded-[12px] file:border-0 file:bg-[#f1f1f1] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-[#202223]"
+                      data-image-input
+                    />
+                  </label>
+                  <button type="button" class="h-11 rounded-[14px] border border-black/10 bg-white px-4 text-sm font-semibold text-[#202223] transition hover:bg-[#f7f7f7]" data-clear-image>
+                    Clear selected image
+                  </button>
+                  <p class="text-xs leading-5 text-[#6d7175]">JPG, PNG, WebP, or AVIF. Max {maxUploadMb} MB.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="rounded-[26px] border border-black/6 bg-white shadow-[0_18px_44px_rgba(0,0,0,0.05)]">
+            <div class="border-b border-black/6 px-5 py-5 md:px-6">
+              <div class="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p class="text-sm font-semibold text-[#6d7175]">Variants / options</p>
+                  <h2 class="mt-1 text-2xl font-semibold tracking-tight text-[#202223]">Flavours and serving sizes</h2>
+                </div>
+                <button type="button" class="w-fit rounded-[12px] border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-[#202223] shadow-sm transition hover:bg-[#f7f7f7]" data-add-option="flavour">
+                  Add flavour
+                </button>
+              </div>
+            </div>
+
+            <div class="grid gap-5 p-5 md:p-6">
+              <textarea name="variants" class="sr-only" tabindex="-1" aria-hidden="true" data-variants-field>{variantsText}</textarea>
+
+              <div class="rounded-[18px] border border-black/8 bg-[#fbfbfb]" data-option-group="flavour">
+                <div class="flex flex-col gap-3 border-b border-black/6 px-4 py-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p class="text-sm font-semibold text-[#202223]">Flavour</p>
+                    <p class="mt-1 text-xs text-[#6d7175]">Click a pill to edit the label or remove that option.</p>
+                  </div>
+                  <button type="button" class="w-fit rounded-[12px] border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-[#202223] transition hover:bg-[#f7f7f7]" data-add-option="flavour">
+                    Add value
+                  </button>
+                </div>
+                <div class="flex flex-wrap gap-2 p-4" data-option-pills="flavour">
+                  {flavourOptions.length ? (
+                    flavourOptions.map((option) => (
+                      <button type="button" class="rounded-[10px] border border-black/8 bg-white px-3 py-1.5 text-sm font-medium text-[#202223] shadow-sm transition hover:border-[#1d1d1d]" data-option-pill data-option-type="flavour" data-option-value={option}>
+                        {option}
+                      </button>
+                    ))
+                  ) : (
+                    <p class="text-sm text-[#6d7175]" data-empty-options="flavour">No flavour options stored for this product.</p>
+                  )}
+                </div>
+              </div>
+
+              <div class="rounded-[18px] border border-black/8 bg-[#fbfbfb]" data-option-group="servingSize">
+                <div class="flex flex-col gap-3 border-b border-black/6 px-4 py-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p class="text-sm font-semibold text-[#202223]">Serving size</p>
+                    <p class="mt-1 text-xs text-[#6d7175]">Use this for portions, box sizes, or other supported size labels.</p>
+                  </div>
+                  <button type="button" class="w-fit rounded-[12px] border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-[#202223] transition hover:bg-[#f7f7f7]" data-add-option="servingSize">
+                    Add value
+                  </button>
+                </div>
+                <div class="flex flex-wrap gap-2 p-4" data-option-pills="servingSize">
+                  {servingSizeOptions.length ? (
+                    servingSizeOptions.map((option) => (
+                      <button type="button" class="rounded-[10px] border border-black/8 bg-white px-3 py-1.5 text-sm font-medium text-[#202223] shadow-sm transition hover:border-[#1d1d1d]" data-option-pill data-option-type="servingSize" data-option-value={option}>
+                        {option}
+                      </button>
+                    ))
+                  ) : (
+                    <p class="text-sm text-[#6d7175]" data-empty-options="servingSize">No serving size options stored for this product.</p>
+                  )}
+                </div>
+              </div>
+
+              <div class="hidden rounded-[18px] border border-[#b7d2ff] bg-[#f7fbff] p-4 shadow-[0_12px_28px_rgba(0,0,0,0.04)]" data-option-editor>
+                <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p class="text-xs font-bold uppercase tracking-[0.14em] text-[#4c6f9f]" data-option-editor-kicker>Option value</p>
+                    <h3 class="mt-1 text-lg font-semibold text-[#202223]" data-option-editor-title>Edit option</h3>
+                  </div>
+                  <button type="button" class="h-9 rounded-[12px] border border-black/10 bg-white px-3 text-xs font-semibold text-[#202223] transition hover:bg-[#f7f7f7]" data-close-option-editor>
+                    Close
+                  </button>
+                </div>
+                <div class="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_140px]">
+                  <label class="block">
+                    <span class="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Option label</span>
+                    <input type="text" class="h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" data-option-label />
+                  </label>
+                  <label class="block">
+                    <span class="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Price</span>
+                    <input type="number" min="0.01" step="0.01" class="h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" data-option-price />
+                  </label>
+                </div>
+                <div class="mt-4 flex flex-wrap gap-3">
+                  <button type="button" class="h-10 rounded-[12px] bg-[#1d1d1d] px-4 text-sm font-semibold text-white transition hover:bg-black" data-save-option>
+                    Save option
+                  </button>
+                  <button type="button" class="h-10 rounded-[12px] border border-black/10 bg-white px-4 text-sm font-semibold text-[#202223] transition hover:bg-[#f7f7f7]" data-cancel-option>
+                    Cancel
+                  </button>
+                  <button type="button" class="h-10 rounded-[12px] border border-[#f2b8b5] bg-[#fff0f0] px-4 text-sm font-semibold text-[#a12018] transition hover:bg-[#ffe1e1]" data-delete-option>
+                    Delete option
+                  </button>
+                </div>
+              </div>
+
+              <div class="overflow-hidden rounded-[18px] border border-black/8">
+                <div class="grid grid-cols-[minmax(0,1fr)_110px] gap-3 bg-[#f7f7f7] px-4 py-3 text-xs font-bold uppercase tracking-[0.12em] text-[#6d7175] md:grid-cols-[minmax(0,1fr)_150px_120px]">
+                  <span>Variant</span>
+                  <span>Price</span>
+                  <span class="hidden md:block">Status</span>
+                </div>
+                <div class="divide-y divide-black/6" data-variant-summary>
+                  {(currentProduct.variants ?? []).length ? (
+                    (currentProduct.variants ?? []).map((variant) => (
+                      <div class="grid grid-cols-[minmax(0,1fr)_110px] gap-3 px-4 py-3 text-sm md:grid-cols-[minmax(0,1fr)_150px_120px]">
+                        <span class="font-medium text-[#202223]">{[variant.flavour, variant.servingSize].filter(Boolean).join(' / ') || currentProduct.name}</span>
+                        <span class="text-[#202223]">{formatPrice(variant.price)}</span>
+                        <span class="hidden text-[#6d7175] md:block">Available</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p class="px-4 py-5 text-sm text-[#6d7175]">This product currently uses its base price with no variants.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="rounded-[26px] border border-black/6 bg-white shadow-[0_18px_44px_rgba(0,0,0,0.05)]">
+            <div class="border-b border-black/6 px-5 py-5 md:px-6">
+              <p class="text-sm font-semibold text-[#6d7175]">Supporting metadata</p>
+              <h2 class="mt-1 text-2xl font-semibold tracking-tight text-[#202223]">Features</h2>
+            </div>
+
+            <div class="grid gap-5 p-5 md:p-6">
+              <label class="block">
+                <span class="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Features</span>
+                <textarea name="features" rows="4" class="w-full rounded-[14px] border border-black/10 bg-white px-3 py-3 text-sm leading-6 text-[#202223] outline-none focus:border-[#1d1d1d]">{featuresText}</textarea>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <aside class="space-y-5">
+          <section class="rounded-[26px] border border-black/6 bg-white p-5 shadow-[0_18px_44px_rgba(0,0,0,0.05)]">
+            <p class="text-sm font-semibold text-[#6d7175]">Status</p>
+            <div class="flex items-center justify-between gap-3">
+              <span class="rounded-full bg-[#e8f5ef] px-3 py-1 text-xs font-semibold text-[#0f6b3f]">{currentProduct.status}</span>
+              <span class="text-xs font-semibold text-[#6d7175]">{currentProduct.hasCmsOverride ? 'CMS saved' : 'Using default'}</span>
+            </div>
+            <p class="mt-4 text-xs leading-5 text-[#6d7175]">Products stay active because the current public store model does not support draft visibility.</p>
+          </section>
+
+          <section class="rounded-[26px] border border-black/6 bg-white p-5 shadow-[0_18px_44px_rgba(0,0,0,0.05)]">
+            <p class="text-sm font-semibold text-[#6d7175]">Pricing</p>
+            <p class="mt-2 text-3xl font-semibold tracking-tight text-[#202223]">{formatPrice(currentProduct.price)}</p>
+            <p class="mt-2 text-xs leading-5 text-[#6d7175]">Base price. Variant rows can carry their own prices where supported.</p>
+          </section>
+
+          <section class="sticky top-5 rounded-[26px] border border-black/6 bg-white p-5 shadow-[0_18px_44px_rgba(0,0,0,0.05)]">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-sm font-semibold text-[#202223]">Save changes</p>
+                <p class="mt-1 text-xs text-[#6d7175]" data-save-state>{formatDate(currentProduct.updatedAt)}</p>
+              </div>
+              <span class="hidden rounded-full bg-[#fff8e8] px-3 py-1 text-xs font-semibold text-[#7a4d00]" data-unsaved-pill>
+                Unsaved
+              </span>
+            </div>
+                <p class="mt-4 font-mono text-xs text-[#6d7175]">{isNewProduct ? 'A live product page is created after saving.' : currentProduct.path}</p>
+            <div class="mt-5 grid gap-3">
+              <button type="submit" class="h-11 rounded-[14px] bg-[#1d1d1d] px-4 text-sm font-semibold text-white transition hover:bg-black">
+                {isNewProduct ? 'Create product' : 'Save product'}
+              </button>
+              <button type="reset" class="h-11 rounded-[14px] border border-black/10 bg-white px-4 text-sm font-semibold text-[#202223] transition hover:bg-[#f7f7f7]" data-reset-preview>
+                Reset changes
+              </button>
+              <a href={routes.adminOnlineStore} class="flex h-11 items-center justify-center rounded-[14px] border border-black/10 bg-white px-4 text-sm font-semibold text-[#202223] transition hover:bg-[#f7f7f7]">
+                Cancel
+              </a>
+            </div>
+          </section>
+        </aside>
+      </form>
+
+      <script is:inline nonce={Astro.locals.cspNonce}>
+        const editor = document.querySelector('[data-product-editor]');
+        const input = editor?.querySelector('[data-image-input]');
+        const clearImageButton = editor?.querySelector('[data-clear-image]');
+        const preview = editor?.querySelector('[data-replacement-preview]');
+        const emptyPreview = editor?.querySelector('[data-empty-preview]');
+        const fileName = editor?.querySelector('[data-file-name]');
+        const variantsField = editor?.querySelector('[data-variants-field]');
+        const variantSummary = editor?.querySelector('[data-variant-summary]');
+        const unsavedPill = editor?.querySelector('[data-unsaved-pill]');
+        const saveState = editor?.querySelector('[data-save-state]');
+        const optionEditor = editor?.querySelector('[data-option-editor]');
+        const optionEditorKicker = editor?.querySelector('[data-option-editor-kicker]');
+        const optionEditorTitle = editor?.querySelector('[data-option-editor-title]');
+        const optionLabelInput = editor?.querySelector('[data-option-label]');
+        const optionPriceInput = editor?.querySelector('[data-option-price]');
+        const closeOptionEditor = editor?.querySelector('[data-close-option-editor]');
+        const saveOptionButton = editor?.querySelector('[data-save-option]');
+        const cancelOptionButton = editor?.querySelector('[data-cancel-option]');
+        const deleteOptionButton = editor?.querySelector('[data-delete-option]');
+        let previewUrl = '';
+        let activeOption = null;
+
+        const basePrice = Number(editor?.querySelector('input[name="price"]')?.value || '0') || 0;
+        let variants = (() => {
+          try {
+            const parsed = JSON.parse(editor?.dataset.variants || '[]');
+            return Array.isArray(parsed) ? parsed.map((variant) => ({
+              flavour: String(variant.flavour || ''),
+              servingSize: String(variant.servingSize || ''),
+              price: Number(variant.price) || basePrice,
+            })) : [];
+          } catch {
+            return [];
+          }
+        })();
+
+        const markDirty = () => {
+          unsavedPill?.classList.remove('hidden');
+          if (saveState) saveState.textContent = 'Unsaved changes';
+        };
+
+        const money = (value) => {
+          const amount = Number(value) || 0;
+          return new Intl.NumberFormat('en-GB', {
+            style: 'currency',
+            currency: 'GBP',
+            minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+            maximumFractionDigits: 2,
+          }).format(amount);
+        };
+
+        const uniqueOptions = (type) => [...new Set(variants.map((variant) => variant[type]).filter(Boolean))];
+
+        const serializeVariants = () => {
+          if (variantsField instanceof HTMLTextAreaElement) {
+            variantsField.value = variants
+              .filter((variant) => Number(variant.price) > 0)
+              .map((variant) => `${variant.flavour || ''} | ${variant.servingSize || ''} | ${Number(variant.price).toFixed(2)}`)
+              .join('\n');
+          }
+        };
+
+        const getOptionPrice = (type, value) => {
+          const match = variants.find((variant) => variant[type] === value);
+          return match?.price || basePrice || 1;
+        };
+
+        const renderPills = (type) => {
+          const wrap = editor?.querySelector(`[data-option-pills="${type}"]`);
+          if (!(wrap instanceof HTMLElement)) return;
+
+          wrap.innerHTML = '';
+          const options = uniqueOptions(type);
+
+          if (!options.length) {
+            const empty = document.createElement('p');
+            empty.className = 'text-sm text-[#6d7175]';
+            empty.textContent = type === 'flavour'
+              ? 'No flavour options stored for this product.'
+              : 'No serving size options stored for this product.';
+            wrap.append(empty);
+            return;
+          }
+
+          options.forEach((option) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'rounded-[10px] border border-black/8 bg-white px-3 py-1.5 text-sm font-medium text-[#202223] shadow-sm transition hover:border-[#1d1d1d]';
+            button.dataset.optionPill = '';
+            button.dataset.optionType = type;
+            button.dataset.optionValue = option;
+            button.textContent = option;
+            wrap.append(button);
+          });
+        };
+
+        const renderSummary = () => {
+          if (!(variantSummary instanceof HTMLElement)) return;
+
+          variantSummary.innerHTML = '';
+
+          if (!variants.length) {
+            const empty = document.createElement('p');
+            empty.className = 'px-4 py-5 text-sm text-[#6d7175]';
+            empty.textContent = 'This product currently uses its base price with no variants.';
+            variantSummary.append(empty);
+            serializeVariants();
+            return;
+          }
+
+          variants.forEach((variant) => {
+            const row = document.createElement('div');
+            row.className = 'grid grid-cols-[minmax(0,1fr)_110px] gap-3 px-4 py-3 text-sm md:grid-cols-[minmax(0,1fr)_150px_120px]';
+            const label = document.createElement('span');
+            label.className = 'font-medium text-[#202223]';
+            label.textContent = [variant.flavour, variant.servingSize].filter(Boolean).join(' / ') || 'Base product';
+            const price = document.createElement('span');
+            price.className = 'text-[#202223]';
+            price.textContent = money(variant.price);
+            const status = document.createElement('span');
+            status.className = 'hidden text-[#6d7175] md:block';
+            status.textContent = 'Available';
+            row.append(label, price, status);
+            variantSummary.append(row);
+          });
+
+          serializeVariants();
+        };
+
+        const refreshOptions = () => {
+          renderPills('flavour');
+          renderPills('servingSize');
+          renderSummary();
+        };
+
+        const openOptionEditorFor = (type, value) => {
+          activeOption = { type, value, mode: 'edit' };
+          optionEditor?.classList.remove('hidden');
+          if (optionEditorKicker) optionEditorKicker.textContent = type === 'flavour' ? 'Flavour option' : 'Serving size option';
+          if (optionEditorTitle) optionEditorTitle.textContent = value;
+          if (optionLabelInput instanceof HTMLInputElement) optionLabelInput.value = value;
+          if (optionPriceInput instanceof HTMLInputElement) optionPriceInput.value = String(getOptionPrice(type, value));
+          optionLabelInput?.focus();
+        };
+
+        const openNewOptionEditor = (type) => {
+          activeOption = { type, value: '', mode: 'new' };
+          optionEditor?.classList.remove('hidden');
+          if (optionEditorKicker) optionEditorKicker.textContent = type === 'flavour' ? 'New flavour option' : 'New serving size option';
+          if (optionEditorTitle) optionEditorTitle.textContent = 'Add option value';
+          if (optionLabelInput instanceof HTMLInputElement) optionLabelInput.value = '';
+          if (optionPriceInput instanceof HTMLInputElement) optionPriceInput.value = String(basePrice || 1);
+          optionLabelInput?.focus();
+        };
+
+        const closeEditor = () => {
+          activeOption = null;
+          optionEditor?.classList.add('hidden');
+        };
+
+        const upsertOption = () => {
+          if (!activeOption || !(optionLabelInput instanceof HTMLInputElement)) return;
+
+          const type = activeOption.type;
+          const value = optionLabelInput.value.trim().replace(/[<>]/g, '').slice(0, 80);
+          const price = optionPriceInput instanceof HTMLInputElement ? Number(optionPriceInput.value) : basePrice;
+          const safePrice = Number.isFinite(price) && price > 0 ? Math.round(price * 100) / 100 : basePrice || 1;
+
+          if (!value) {
+            optionLabelInput.focus();
+            return;
+          }
+
+          if (activeOption.mode === 'edit') {
+            variants = variants.map((variant) => variant[type] === activeOption.value ? { ...variant, [type]: value, price: safePrice } : variant);
+          } else {
+            const otherType = type === 'flavour' ? 'servingSize' : 'flavour';
+            const otherOptions = uniqueOptions(otherType);
+            const rows = otherOptions.length
+              ? otherOptions.map((other) => ({ flavour: type === 'flavour' ? value : other, servingSize: type === 'servingSize' ? value : other, price: safePrice }))
+              : [{ flavour: type === 'flavour' ? value : '', servingSize: type === 'servingSize' ? value : '', price: safePrice }];
+            variants = [...variants, ...rows];
+          }
+
+          variants = variants.filter((variant, index, list) => {
+            const key = `${variant.flavour}::${variant.servingSize}`;
+            return list.findIndex((item) => `${item.flavour}::${item.servingSize}` === key) === index;
+          });
+
+          refreshOptions();
+          markDirty();
+          closeEditor();
+        };
+
+        const deleteOption = () => {
+          if (!activeOption) return;
+          variants = variants.filter((variant) => variant[activeOption.type] !== activeOption.value);
+          refreshOptions();
+          markDirty();
+          closeEditor();
+        };
+
+        const resetPreview = () => {
+          if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+            previewUrl = '';
+          }
+
+          if (preview instanceof HTMLImageElement) {
+            preview.src = '';
+            preview.alt = '';
+            preview.classList.add('hidden');
+          }
+
+          emptyPreview?.classList.remove('hidden');
+          if (fileName) fileName.textContent = 'No replacement selected';
+        };
+
+        input?.addEventListener('change', () => {
+          resetPreview();
+          const file = input instanceof HTMLInputElement ? input.files?.[0] : null;
+
+          if (!file) return;
+
+          previewUrl = URL.createObjectURL(file);
+
+          if (preview instanceof HTMLImageElement) {
+            preview.src = previewUrl;
+            preview.alt = file.name;
+            preview.classList.remove('hidden');
+          }
+
+          emptyPreview?.classList.add('hidden');
+          if (fileName) fileName.textContent = file.name;
+          markDirty();
+        });
+
+        clearImageButton?.addEventListener('click', () => {
+          if (input instanceof HTMLInputElement) {
+            input.value = '';
+          }
+          resetPreview();
+          markDirty();
+        });
+
+        editor?.addEventListener('input', (event) => {
+          const target = event.target;
+          if (target instanceof HTMLElement && !target.matches('[data-option-label], [data-option-price]')) {
+            markDirty();
+          }
+        });
+
+        editor?.addEventListener('click', (event) => {
+          const target = event.target;
+
+          if (!(target instanceof HTMLElement)) return;
+
+          const addButton = target.closest('[data-add-option]');
+          if (addButton instanceof HTMLElement) {
+            openNewOptionEditor(addButton.dataset.addOption || 'flavour');
+            return;
+          }
+
+          const pill = target.closest('[data-option-pill]');
+          if (pill instanceof HTMLElement) {
+            openOptionEditorFor(pill.dataset.optionType || 'flavour', pill.dataset.optionValue || '');
+          }
+        });
+
+        saveOptionButton?.addEventListener('click', upsertOption);
+        deleteOptionButton?.addEventListener('click', deleteOption);
+        closeOptionEditor?.addEventListener('click', closeEditor);
+        cancelOptionButton?.addEventListener('click', closeEditor);
+
+        editor?.addEventListener('reset', () => {
+          window.setTimeout(() => {
+            resetPreview();
+            variants = (() => {
+              try {
+                const parsed = JSON.parse(editor?.dataset.variants || '[]');
+                return Array.isArray(parsed) ? parsed.map((variant) => ({
+                  flavour: String(variant.flavour || ''),
+                  servingSize: String(variant.servingSize || ''),
+                  price: Number(variant.price) || basePrice,
+                })) : [];
+              } catch {
+                return [];
+              }
+            })();
+            refreshOptions();
+            closeEditor();
+            unsavedPill?.classList.add('hidden');
+            if (saveState) saveState.textContent = 'Changes reset';
+          }, 0);
+        });
+
+        refreshOptions();
+        window.addEventListener('pagehide', resetPreview, { once: true });
+      </script>
+    </AdminShell>
+  </body>
+</html>

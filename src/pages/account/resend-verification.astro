@@ -1,0 +1,52 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/PageHero.astro';
+import { sendVerificationEmail } from '../../lib/customerAccountEmails';
+import { createVerificationCode, getAccountByEmail } from '../../lib/customerAccountAuth';
+import { getAdapterEnv } from '../../lib/runtimeEnv';
+import { routes } from '../../lib/routes';
+import { checkRateLimit, requestKey } from '../../security/rate-limit';
+import { sanitizeEmail } from '../../security/sanitize';
+
+export const prerender = false;
+
+let message = '';
+let error = '';
+const initialEmail = sanitizeEmail(Astro.url.searchParams.get('email'));
+
+if (Astro.request.method === 'POST') {
+  const email = sanitizeEmail((await Astro.request.formData()).get('email'));
+  const emailAttemptKey = `${Astro.url.pathname}:email:${email || 'blank'}`;
+
+  if (!checkRateLimit(requestKey(Astro.request), 3, 60_000) || !checkRateLimit(emailAttemptKey, 3, 15 * 60_000)) {
+    error = 'Please wait a moment before trying again.';
+  } else {
+    const env = getAdapterEnv(Astro);
+    const account = await getAccountByEmail(env, email);
+    if (account && !account.emailVerified && account.status === 'active') {
+      try {
+        const code = await createVerificationCode(env, account.id);
+        await sendVerificationEmail(env, Astro.url, account.email, code);
+      } catch {
+        error = 'We could not send a new code right now. Please try again shortly.';
+      }
+    }
+    if (!error) message = 'If that email needs verification, we will send a new code shortly.';
+  }
+}
+---
+
+<Layout title="Resend Verification | The Crumb Works" description="Request a new account verification email.">
+  <PageHero align="center" title="Resend Verification" />
+  <section class="warm-stage px-3 pb-18 pt-4 md:px-4">
+    <div class="mx-auto max-w-xl">
+      <form method="post" class="premium-form-card space-y-4">
+        {message && <p class="rounded-[12px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</p>}
+        {error && <p class="rounded-[12px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+        <label class="premium-field"><span>Email</span><input class="input-shell" name="email" type="email" value={initialEmail} required /></label>
+        <button class="w-full rounded-[10px] bg-[var(--brand-ink)] px-6 py-3 text-sm font-semibold text-white" type="submit">Send verification link</button>
+        <p class="text-center text-sm"><a class="font-semibold text-[var(--brand-purple)]" href={routes.accountSignIn}>Back to sign in</a></p>
+      </form>
+    </div>
+  </section>
+</Layout>

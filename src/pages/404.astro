@@ -1,0 +1,19 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { buildSeo } from '../lib/seo';
+
+const seo = buildSeo('Page not found', 'The page you are looking for could not be found.', '/404');
+---
+
+<Layout title={seo.title} description={seo.description}>
+  <section class="flex min-h-[80vh] items-center px-3 py-32 md:px-4">
+    <div class="mx-auto max-w-3xl card-shell rainbow-bubble-stage isolate p-10 text-center" data-rainbow-parallax data-rainbow-depth="0.5" data-rainbow-direction="1">
+      <h1 class="text-4xl font-semibold text-[var(--brand-ink)] md:text-6xl">We couldn't find that page.</h1>
+      <p class="mx-auto mt-5 max-w-xl text-sm leading-7 text-[var(--brand-ink-soft)] md:text-base">Use the main menu or head back home to continue browsing cakes, brownies, cupcakes and treat boxes.</p>
+      <div class="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+        <a href="/" class="rounded-[10px] bg-[var(--brand-purple)] px-6 py-3 text-sm font-semibold text-white">Go home</a>
+        <a href="/products" class="rounded-[10px] border border-[#f4bfd2] px-6 py-3 text-sm text-[var(--brand-ink-soft)]">Browse products</a>
+      </div>
+    </div>
+  </section>
+</Layout>

@@ -1,0 +1,318 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import AllergenNotice from '../../components/AllergenNotice.astro';
+import ProductVisual from '../../components/ProductVisual.astro';
+import { formatPrice, formatPriceRange, getProductPriceLabel } from '../../lib/format';
+import { getManagedImageSrc } from '../../lib/imageStore';
+import { productImageIdsBySlug } from '../../lib/managedImages';
+import { getOnlineStoreProduct } from '../../lib/productStore';
+import { getAdapterEnv } from '../../lib/runtimeEnv';
+import { buildSeo } from '../../lib/seo';
+const env = getAdapterEnv(Astro);
+const baseProduct = await getOnlineStoreProduct(env, String(Astro.params.slug ?? ''));
+
+if (!baseProduct) {
+  throw new Error(`Unknown product slug: ${Astro.params.slug}`);
+}
+
+const imageId = productImageIdsBySlug[baseProduct.slug];
+const product = {
+  ...baseProduct,
+  image: imageId ? await getManagedImageSrc(env, imageId) : baseProduct.image,
+};
+const seo = buildSeo(product.name, product.description, `/products/${product.slug}`);
+const variants = product.variants ?? [];
+const flavourOptions = [...new Set(variants.map((variant) => variant.flavour).filter(Boolean))];
+const servingSizeOptions = [...new Set(variants.map((variant) => variant.servingSize).filter(Boolean))];
+const defaultPrice = variants.length ? formatPriceRange(variants.map((variant) => variant.price)) : formatPrice(product.price);
+---
+
+<Layout title={seo.title} description={seo.description}>
+  <section class="warm-stage px-3 pb-18 pt-32 md:px-4 md:pt-36">
+    <div class="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+      <ProductVisual accent={product.accent} glow={product.glow} imageSrc={product.image} imageAlt={product.imageAlt} priority />
+      <div class="rainbow-bubble-stage relative isolate space-y-6 rounded-[22px] border border-[#f4c8d9] bg-white p-7 shadow-[0_12px_36px_rgba(27,29,39,0.08)] md:p-9" data-rainbow-parallax data-rainbow-depth="0.52" data-rainbow-direction="-1">
+        <div class="relative z-10 text-sm font-medium uppercase tracking-[0.18em] text-[var(--brand-ink-soft)]">
+          {product.category}
+        </div>
+        <h1 class="poster-title relative z-10 text-5xl text-[var(--brand-purple)] md:text-6xl">{product.name}</h1>
+        {product.enquireOnly ? (
+          <div class="relative z-10">
+            <span class="inline-flex rounded-full border border-[#f3d3b0] bg-[#fff5e8] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#8a4c00]">
+              Enquire only
+            </span>
+          </div>
+        ) : null}
+        <p id="product-price" class="relative z-10 text-2xl font-semibold text-[var(--brand-ink)]" data-default-price={defaultPrice}>{getProductPriceLabel(product)}</p>
+        <p class="relative z-10 text-base leading-7 text-[var(--brand-ink-soft)]">
+          {product.description}
+          {product.enquireOnly ? ' This product is arranged by enquiry so we can confirm your design, date and final quote before anything is booked in.' : ''}
+        </p>
+
+        <div
+          class="space-y-5"
+          data-product-options
+          data-product-name={product.name}
+          data-product-slug={product.slug}
+          data-product-image={product.image}
+          data-product-category={product.category}
+          data-product-base-price={formatPrice(product.price)}
+          data-product-enquire-only={product.enquireOnly ? 'true' : 'false'}
+          data-product-variants={JSON.stringify(variants)}
+        >
+          {flavourOptions.length ? (
+            <label class="block space-y-2">
+              <span class="block text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand-ink-soft)]">Flavour</span>
+              <select id="product-flavour" class="input-shell w-full">
+                <option value="">Select flavour</option>
+                {flavourOptions.map((option) => (
+                  <option value={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          {servingSizeOptions.length ? (
+            <label class="block space-y-2">
+              <span class="block text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand-ink-soft)]">Serving size</span>
+              <select id="product-serving-size" class="input-shell w-full">
+                <option value="">Select serving size</option>
+                {servingSizeOptions.map((option) => (
+                  <option value={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <p id="product-selection-copy" class="text-sm text-[var(--brand-ink-soft)]">
+            {product.enquireOnly
+              ? 'Choose your preferred options, then send us an enquiry so we can confirm availability and pricing.'
+              : variants.length
+              ? 'Select your flavour and serving size to see the exact price.'
+              : 'Ready to add straight to cart.'}
+          </p>
+
+          <p id="product-option-error" class="hidden rounded-[12px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"></p>
+        </div>
+
+        <ul class="grid gap-2 text-sm text-[var(--brand-ink)]">
+          {product.features.map((feature) => (
+            <li class="flex items-center gap-2">
+              <span class="h-1.5 w-1.5 rounded-full bg-[var(--brand-pink)]"></span>
+              {feature}
+            </li>
+          ))}
+        </ul>
+
+        <div class="space-y-3 pt-2">
+          <AllergenNotice />
+          {product.enquireOnly ? null : (
+            <button
+              id="add-to-cart-button"
+              type="button"
+              class="block w-full rounded-[10px] bg-[var(--brand-ink)] px-6 py-3 text-center text-sm font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-[var(--brand-purple)] disabled:cursor-not-allowed disabled:opacity-40"
+              data-selected-serving-size=""
+              data-selected-price={defaultPrice}
+            >
+              Add to cart
+            </button>
+          )}
+          <a id="product-enquiry-link" href={`/contact?product=${encodeURIComponent(product.name)}`} class="block w-full rounded-[10px] bg-[var(--brand-purple)] px-6 py-3 text-center text-sm font-semibold text-white">{product.enquireOnly ? 'Enquire about this product' : 'Enquire about this bake'}</a>
+          <a href="/products" class="block w-full rounded-[10px] border border-[#f4bfd2] px-6 py-3 text-center text-sm text-[var(--brand-ink-soft)]">Back to the shop</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script is:inline nonce={Astro.locals.cspNonce}>
+        const CART_STORAGE_KEY = 'crumbWorksCart';
+        const LEGACY_CART_STORAGE_KEY = ['baked', 'By', 'MadyCart'].join('');
+        const optionsRoot = document.querySelector('[data-product-options]');
+        const priceEl = document.getElementById('product-price');
+        const flavourSelect = document.getElementById('product-flavour');
+        const servingSizeSelect = document.getElementById('product-serving-size');
+        const selectionCopy = document.getElementById('product-selection-copy');
+        const enquiryLink = document.getElementById('product-enquiry-link');
+        const addToCartButton = document.getElementById('add-to-cart-button');
+        const optionError = document.getElementById('product-option-error');
+        const enquireOnly = optionsRoot instanceof HTMLElement ? optionsRoot.dataset.productEnquireOnly === 'true' : false;
+
+        const variants = (() => {
+          if (!(optionsRoot instanceof HTMLElement)) return [];
+
+          try {
+            const parsed = JSON.parse(optionsRoot.dataset.productVariants || '[]');
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        })();
+
+        const showOptionError = (message) => {
+          if (!(optionError instanceof HTMLElement)) return;
+          optionError.textContent = message;
+          optionError.classList.remove('hidden');
+        };
+
+        const clearOptionError = () => {
+          if (!(optionError instanceof HTMLElement)) return;
+          optionError.textContent = '';
+          optionError.classList.add('hidden');
+        };
+
+        const formatMoney = (value) => {
+          const amount = Number(value);
+          return new Intl.NumberFormat('en-GB', {
+            style: 'currency',
+            currency: 'GBP',
+            minimumFractionDigits: amount % 1 !== 0 ? 2 : 0,
+            maximumFractionDigits: 2
+          }).format(amount);
+        };
+
+        const getSelectedVariant = (flavour, servingSize) => {
+          if (!variants.length) return null;
+
+          return variants.find((variant) => {
+            const flavourMatches = !variant.flavour || variant.flavour === flavour;
+            const sizeMatches = !variant.servingSize || variant.servingSize === servingSize;
+            return flavourMatches && sizeMatches;
+          }) || null;
+        };
+
+        const updateVariantState = () => {
+          const flavour = flavourSelect instanceof HTMLSelectElement ? flavourSelect.value : '';
+          const servingSize = servingSizeSelect instanceof HTMLSelectElement ? servingSizeSelect.value : '';
+          const selectedVariant = getSelectedVariant(flavour, servingSize);
+          const defaultPrice = priceEl instanceof HTMLElement
+            ? priceEl.dataset.defaultPrice || optionsRoot?.dataset.productBasePrice || ''
+            : optionsRoot?.dataset.productBasePrice || '';
+
+          const nextPrice = selectedVariant
+            ? formatMoney(selectedVariant.price)
+            : !variants.length
+              ? optionsRoot?.dataset.productBasePrice || defaultPrice
+              : defaultPrice;
+
+          if (priceEl instanceof HTMLElement) {
+            priceEl.textContent = nextPrice;
+          }
+
+          if (addToCartButton instanceof HTMLButtonElement) {
+            addToCartButton.dataset.selectedFlavour = selectedVariant?.flavour || flavour || '';
+            addToCartButton.dataset.selectedServingSize = selectedVariant?.servingSize || '';
+            addToCartButton.dataset.selectedPrice = nextPrice;
+          }
+
+          if (selectionCopy instanceof HTMLElement) {
+            selectionCopy.textContent = enquireOnly
+              ? 'Choose your preferred options, then send us an enquiry so we can confirm availability and pricing.'
+              : selectedVariant
+              ? `${selectedVariant.flavour ? `${selectedVariant.flavour}, ` : ''}${selectedVariant.servingSize ?? ''} selected.`
+              : !variants.length
+                ? 'Ready to add straight to cart.'
+                : 'Select your flavour and serving size to see the exact price.';
+          }
+
+          if (enquiryLink instanceof HTMLAnchorElement) {
+            const url = new URL('/contact', window.location.origin);
+            url.searchParams.set('product', optionsRoot?.dataset.productName || optionsRoot?.dataset.productSlug || '');
+            if (selectedVariant?.flavour) url.searchParams.set('flavour', selectedVariant.flavour);
+            if (selectedVariant?.servingSize) url.searchParams.set('size', selectedVariant.servingSize);
+            if (selectedVariant) url.searchParams.set('price', nextPrice);
+            enquiryLink.href = `${url.pathname}${url.search}`;
+          }
+
+          if (selectedVariant) {
+            clearOptionError();
+          }
+        };
+
+        const parsePriceToPence = (priceText) => {
+          const cleaned = String(priceText || '').replace(/[^0-9.]/g, '');
+          const amount = Number(cleaned);
+          if (!Number.isFinite(amount)) return 0;
+          return Math.round(amount * 100);
+        };
+
+        const readCart = () => {
+          try {
+            const storedCart = localStorage.getItem(CART_STORAGE_KEY) || localStorage.getItem(LEGACY_CART_STORAGE_KEY) || '[]';
+            const parsed = JSON.parse(storedCart);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        };
+
+        const writeCart = (items) => {
+          localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+          localStorage.removeItem(LEGACY_CART_STORAGE_KEY);
+        };
+
+        const addSelectedItemToCart = () => {
+          if (enquireOnly) {
+            showOptionError('This product is currently enquiry only. Please use the enquiry button instead of adding it to cart.');
+            enquiryLink?.focus();
+            return;
+          }
+
+          const flavour = flavourSelect instanceof HTMLSelectElement ? flavourSelect.value : '';
+          const servingSize = servingSizeSelect instanceof HTMLSelectElement ? servingSizeSelect.value : '';
+          const selectedVariant = getSelectedVariant(flavour, servingSize);
+
+          if (flavourSelect instanceof HTMLSelectElement && !flavour) {
+            showOptionError('Please select a flavour before adding this product to your cart.');
+            flavourSelect.focus();
+            return;
+          }
+          if (servingSizeSelect instanceof HTMLSelectElement && !servingSize) {
+            showOptionError('Please select a serving size before adding this product to your cart.');
+            servingSizeSelect?.focus();
+            return;
+          }
+          if (variants.length && !selectedVariant) {
+            showOptionError('Please choose a valid product option before adding this item to your cart.');
+            return;
+          }
+
+          clearOptionError();
+
+          const price = addToCartButton instanceof HTMLButtonElement
+            ? addToCartButton.dataset.selectedPrice || priceEl?.textContent || ''
+            : priceEl?.textContent || '';
+
+          const item = {
+            lineId: `${optionsRoot?.dataset.productSlug || 'product'}-${Date.now()}`,
+            productId: optionsRoot?.dataset.productSlug || '',
+            productName: optionsRoot?.dataset.productName || '',
+            category: optionsRoot?.dataset.productCategory || '',
+            imageUrl: optionsRoot?.dataset.productImage || '',
+            flavour: selectedVariant?.flavour || flavour,
+            servingSize: selectedVariant?.servingSize || servingSize,
+            price,
+            pricePence: parsePriceToPence(price),
+            quantity: 1,
+            enquireOnly: false
+          };
+
+          const nextCart = [...readCart(), item];
+          writeCart(nextCart);
+          window.location.href = '/cart';
+        };
+
+        flavourSelect?.addEventListener('change', updateVariantState);
+        servingSizeSelect?.addEventListener('change', updateVariantState);
+        addToCartButton?.addEventListener('click', addSelectedItemToCart);
+
+        if (flavourSelect instanceof HTMLSelectElement && !flavourSelect.value && flavourSelect.options.length === 2) {
+          flavourSelect.value = flavourSelect.options[1]?.value || '';
+        }
+
+        if (servingSizeSelect instanceof HTMLSelectElement && !servingSizeSelect.value && servingSizeSelect.options.length === 2) {
+          servingSizeSelect.value = servingSizeSelect.options[1]?.value || '';
+        }
+
+        updateVariantState();
+      </script>
+</Layout>

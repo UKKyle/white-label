@@ -1,0 +1,60 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import { businessConfig } from '../config/business';
+
+const updated = '11 July 2026';
+const cookies = [
+  ['velora_csrf', businessConfig.name, 'Helps protect forms against cross-site request forgery.', 'Strictly necessary security', 'Session/short-lived'],
+  ['crumb_customer_session', businessConfig.name, 'Keeps verified customers signed in to their account.', 'Strictly necessary authentication', 'Up to 14 days, with idle checks'],
+  ['bbm_admin_session', businessConfig.name, 'Keeps authorised administrators signed in to the admin CMS.', 'Strictly necessary authentication', 'Up to 8 hours'],
+  ['crumbWorksCart / bakedByMadyCart', businessConfig.name, 'Stores basket contents in localStorage so customers can review checkout.', 'Strictly necessary cart storage', 'Until cleared by the browser or customer'],
+  ['crumbWorksCheckoutCustomer / crumbWorksCheckoutDraft', businessConfig.name, 'Stores checkout draft details locally to avoid losing form progress.', 'Functional checkout storage', 'Until cleared by the browser or customer'],
+  ['crumbworks_email_popup_dismissed', businessConfig.name, 'Uses sessionStorage to avoid showing the signup prompt repeatedly in one browser session.', 'Functional preference storage', 'Current browser tab session'],
+  ['white_label_terms_accepted', businessConfig.name, 'Uses localStorage to remember that the customer has acknowledged the site terms prompt.', 'Functional preference storage', 'Until cleared by the browser or customer'],
+];
+---
+
+<Layout title={`Cookies Policy | ${businessConfig.name}`} description={`How ${businessConfig.name} uses cookies and similar browser technologies.`}>
+  <PageHero align="center" title="Cookies Policy" />
+  <section class="warm-stage px-3 pb-18 pt-4 md:px-4">
+    <div class="mx-auto max-w-4xl space-y-5">
+      <div class="premium-form-card space-y-4 text-sm leading-7 text-[var(--brand-ink-soft)]">
+        <p>Last updated: {updated}</p>
+        <p>Cookies and similar technologies are small pieces of information stored on or read from your browser. {businessConfig.name} uses them only where needed to run the site, protect forms, remember basket or checkout progress, support account/admin sessions and remember simple preferences.</p>
+        <p>We do not currently use Google Analytics, Google Tag Manager, Meta Pixel, TikTok Pixel, Hotjar, Microsoft Clarity, advertising tags, social embeds, video embeds or live-chat tools. Because the active technologies are necessary or functional for services requested by visitors, we do not display a cookie consent banner.</p>
+      </div>
+
+      <section class="premium-form-card">
+        <h2 class="text-xl font-semibold text-[var(--brand-ink)]">Cookie and storage inventory</h2>
+        <div class="mt-4 overflow-x-auto">
+          <table class="min-w-full text-left text-sm text-[var(--brand-ink-soft)]">
+            <thead class="text-xs uppercase tracking-[0.12em]">
+              <tr>
+                <th class="border-b border-[#f8d8e4] py-3 pr-4">Name</th>
+                <th class="border-b border-[#f8d8e4] py-3 pr-4">Provider</th>
+                <th class="border-b border-[#f8d8e4] py-3 pr-4">Purpose</th>
+                <th class="border-b border-[#f8d8e4] py-3 pr-4">Category</th>
+                <th class="border-b border-[#f8d8e4] py-3">Duration</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cookies.map((row) => (
+                <tr>
+                  {row.map((cell) => <td class="border-b border-[#f8d8e4] py-3 pr-4 align-top">{cell}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="premium-form-card space-y-4 text-sm leading-7 text-[var(--brand-ink-soft)]">
+        <h2 class="text-xl font-semibold text-[var(--brand-ink)]">Managing cookies</h2>
+        <p>You can block or delete cookies and local storage through your browser settings. If you disable necessary technologies, account sign-in, admin access, form security, basket storage or checkout may not work correctly.</p>
+        <p>Payment pages may be provided by SumUp and contact forms may submit to Web3Forms. Those providers may apply their own necessary security technologies when you interact with their services.</p>
+        <p>If optional analytics or marketing technologies are introduced later, this policy will be updated and consent will be requested where required. Contact us at <a class="font-semibold text-[var(--brand-purple)]" href={`mailto:${businessConfig.supportEmail}`}>{businessConfig.supportEmail}</a>.</p>
+      </section>
+    </div>
+  </section>
+</Layout>

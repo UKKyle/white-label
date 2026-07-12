@@ -1,0 +1,157 @@
+---
+---
+
+<section
+  id="email-signup-popup"
+  class="email-signup"
+  aria-label="Email signup offer"
+  aria-hidden="false"
+>
+  <div class="email-signup__overlay" data-email-signup-close></div>
+  <div class="email-signup__dialog" role="dialog" aria-modal="false" aria-labelledby="email-signup-title">
+    <button class="email-signup__close" type="button" aria-label="Close email signup" data-email-signup-close>&times;</button>
+    <p class="email-signup__kicker">The Crumb Works</p>
+    <h2 id="email-signup-title" class="email-signup__title">Enjoy 10% off your next order</h2>
+    <p class="email-signup__copy">Sign up for sweet updates, seasonal treats and bespoke bake offers from The Crumb Works.</p>
+    <form class="email-signup__form" data-email-signup-form novalidate>
+      <label class="email-signup__label" for="email-signup-input">Email address</label>
+      <input
+        id="email-signup-input"
+        class="email-signup__input"
+        type="email"
+        name="email"
+        placeholder="Enter your email"
+        autocomplete="email"
+        data-email-signup-input
+      />
+      <p class="email-signup__message email-signup__message--error" data-email-signup-error role="alert"></p>
+      <label class="email-signup__consent">
+        <input type="checkbox" data-email-signup-consent />
+        <span>I'd like to receive offers, updates and 10% off my next order from The Crumb Works.</span>
+      </label>
+      <button class="email-signup__button" type="submit">Get 10% off</button>
+    </form>
+    <p class="email-signup__note">No spam - just the good stuff.</p>
+    <p class="email-signup__message email-signup__message--success" data-email-signup-success role="status"></p>
+  </div>
+</section>
+
+<script is:inline nonce={Astro.locals.cspNonce}>
+  (() => {
+    const popup = document.getElementById('email-signup-popup');
+    if (!(popup instanceof HTMLElement)) return;
+
+    const storageKey = 'crumbWorksEmailSignupDismissed';
+    const form = popup.querySelector('[data-email-signup-form]');
+    const input = popup.querySelector('[data-email-signup-input]');
+    const consent = popup.querySelector('[data-email-signup-consent]');
+    const error = popup.querySelector('[data-email-signup-error]');
+    const success = popup.querySelector('[data-email-signup-success]');
+    const closeButtons = popup.querySelectorAll('[data-email-signup-close]');
+
+    const forceOpen = new URLSearchParams(window.location.search).has('show_signup_popup');
+
+    if (forceOpen) {
+      try {
+        window.sessionStorage.removeItem(storageKey);
+      } catch {
+        // Storage may be unavailable in private browsing modes.
+      }
+    }
+
+    const hasSignedUp = () => {
+      try {
+        return !forceOpen && window.sessionStorage.getItem(storageKey) === 'true';
+      } catch {
+        return false;
+      }
+    };
+
+    const rememberDismissed = () => {
+      try {
+        window.sessionStorage.setItem(storageKey, 'true');
+      } catch {
+        // Storage may be unavailable in private browsing modes.
+      }
+    };
+
+    const showPopup = () => {
+      if (hasSignedUp()) return;
+      popup.classList.remove('email-signup--hidden');
+      popup.setAttribute('aria-hidden', 'false');
+    };
+
+    const closePopup = () => {
+      rememberDismissed();
+      popup.classList.add('email-signup--hidden');
+      popup.setAttribute('aria-hidden', 'true');
+    };
+
+    const setError = (message) => {
+      if (error instanceof HTMLElement) error.textContent = message;
+      if (input instanceof HTMLInputElement) input.setAttribute('aria-invalid', message ? 'true' : 'false');
+    };
+
+    const isEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
+    closeButtons.forEach((button) => button.addEventListener('click', closePopup));
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !popup.classList.contains('email-signup--hidden')) {
+        closePopup();
+      }
+    });
+
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!(input instanceof HTMLInputElement)) return;
+
+      const email = input.value.trim();
+      if (!isEmail(email)) {
+        setError('Please enter a valid email address.');
+        input.focus();
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/customers/signup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            email,
+            marketingOptIn: consent instanceof HTMLInputElement ? consent.checked : false,
+          }),
+        });
+        const result = await response.json().catch(() => ({}));
+
+        if (!response.ok || result?.success === false) {
+          setError(result?.message || 'We could not save your signup right now. Please try again.');
+          return;
+        }
+
+        setError('');
+        rememberDismissed();
+        form.classList.add('hidden');
+        if (success instanceof HTMLElement) {
+          success.textContent = result?.discountCode
+            ? `Thank you - your 10% off code is ${result.discountCode}. Use this code at checkout on your next order over £20.`
+            : result?.marketingOptIn && result?.discountStatus === 'used'
+              ? 'Thank you - your signup has been noted. This email has already used its 10% signup discount.'
+              : 'Thank you - your signup has been noted. The 10% code is only available when you opt in to receive offers and updates.';
+        }
+      } catch {
+        setError('We could not save your signup right now. Please try again.');
+      }
+    });
+
+    if (hasSignedUp()) {
+      popup.classList.add('email-signup--hidden');
+      popup.setAttribute('aria-hidden', 'true');
+    } else {
+      showPopup();
+    }
+  })();
+</script>

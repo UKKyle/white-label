@@ -1,0 +1,52 @@
+---
+interface Props {
+  accent: string;
+  glow: string;
+  compact?: boolean;
+  imageSrc?: string;
+  imageAlt?: string;
+  priority?: boolean;
+}
+
+const { accent, glow, compact = false, imageSrc, imageAlt = '', priority = false } = Astro.props;
+---
+
+<div
+  class:list={[
+    'relative isolate overflow-hidden rounded-[18px] border border-[#f4bfd2] bg-[#fff4f8]',
+    compact ? 'h-44 md:h-64' : 'h-[440px]'
+  ]}
+>
+  {
+    imageSrc ? (
+      <>
+        <img
+          src={imageSrc}
+          alt={imageAlt}
+          class="absolute inset-0 h-full w-full object-cover"
+          loading={priority ? 'eager' : 'lazy'}
+          decoding="async"
+          fetchpriority={priority ? 'high' : 'auto'}
+          width="960"
+          height="960"
+        />
+        <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(36,29,66,0.08))]"></div>
+      </>
+    ) : null
+  }
+  {imageSrc ? null : <div class="absolute inset-0 opacity-80" style={`background: radial-gradient(circle at 50% 28%, ${glow}, transparent 35%);`}></div>}
+  {
+    imageSrc ? (
+      <div class="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/18 to-transparent"></div>
+    ) : (
+      <>
+        <div class="absolute left-1/2 top-12 h-[78%] w-36 -translate-x-1/2 rounded-[30px] bg-[linear-gradient(180deg,#13111d,#27273b)] shadow-[0_24px_50px_rgba(0,0,0,0.35)] md:w-44">
+          <div class="absolute inset-x-4 top-4 h-3 rounded-full bg-white/35"></div>
+          <div class="absolute inset-x-5 top-11 h-24 rounded-[20px] bg-white/10"></div>
+          <div class="absolute inset-x-5 bottom-6 h-14 rounded-[18px]" style={`background: linear-gradient(135deg, ${accent}, rgba(255,255,255,0.14)); box-shadow: 0 0 30px ${glow};`}></div>
+        </div>
+        <div class="absolute inset-x-12 bottom-9 h-16 rounded-full bg-black/35 blur-2xl"></div>
+      </>
+    )
+  }
+</div>

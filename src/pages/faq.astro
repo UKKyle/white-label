@@ -1,0 +1,39 @@
+---
+import FaqList from '../components/FaqList.astro';
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import { faqs } from '../data/site';
+import { buildSeo } from '../lib/seo';
+
+const seo = buildSeo('FAQ', 'Crumb Works FAQs for cakes, brownies, cupcakes, custom orders and Birmingham delivery.', '/faq');
+---
+
+<Layout title={seo.title} description={seo.description}>
+  <PageHero align="center" title="Frequently asked questions" />
+  <section class="relative overflow-hidden bg-[var(--brand-lavender)] px-3 py-14 md:px-4 md:py-20">
+    <div class="pointer-events-none absolute left-[-3rem] top-12 h-36 w-36 rounded-full bg-[var(--brand-pink)]/18 blur-3xl"></div>
+    <div class="pointer-events-none absolute bottom-10 right-[-2.5rem] h-44 w-44 rounded-full bg-[#ffb4d4]/30 blur-3xl"></div>
+
+    <div class="relative mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
+      <aside class="placeholder-pack overflow-hidden p-7 md:p-10" data-rainbow-parallax data-rainbow-depth="0.72" data-rainbow-direction="1">
+        <div class="relative z-10">
+          <p class="mb-4 inline-flex rounded-full bg-white/92 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--brand-purple)] shadow-[0_8px_20px_rgba(36,29,66,0.1)]">
+            Order questions
+          </p>
+          <h2 class="poster-title max-w-xl text-4xl text-white md:text-6xl">
+            Quick answers before you choose your bakes.
+          </h2>
+          <div class="mt-6 flex flex-wrap gap-2">
+            <span class="rounded-full bg-white/92 px-3 py-1.5 text-xs font-bold text-[var(--brand-purple)]">Custom cakes</span>
+            <span class="rounded-full bg-white/92 px-3 py-1.5 text-xs font-bold text-[var(--brand-purple)]">Allergies</span>
+            <span class="rounded-full bg-white/92 px-3 py-1.5 text-xs font-bold text-[var(--brand-purple)]">Delivery</span>
+          </div>
+        </div>
+      </aside>
+
+      <div>
+        <FaqList items={faqs} variant="branded" />
+      </div>
+    </div>
+  </section>
+</Layout>

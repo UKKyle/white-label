@@ -1,0 +1,31 @@
+---
+interface Props {
+  title: string;
+  copy?: string;
+  align?: 'left' | 'center';
+}
+
+const { title, copy, align = 'left' } = Astro.props;
+---
+
+<section class="inner-page-hero-stage rainbow-bubble-stage site-shell isolate overflow-hidden pb-10 pt-32 md:pb-12 md:pt-36" data-rainbow-parallax data-rainbow-depth="0.65" data-rainbow-direction="-1">
+  <div class="relative z-10 mx-auto max-w-7xl">
+    <div class:list={[
+      'inner-hero-shell space-y-6 md:space-y-7',
+      align === 'center' ? 'mx-auto max-w-3xl text-center' : 'max-w-4xl'
+    ]}>
+      <h1 class:list={[
+        align === 'center'
+          ? 'poster-title leading-[0.96] text-4xl text-white md:text-6xl'
+          : 'poster-title leading-[0.94] text-5xl text-white md:text-7xl',
+        align === 'center' ? 'mx-auto max-w-2xl' : 'max-w-3xl'
+      ]}>{title}</h1>
+      {copy && (
+        <p class:list={[
+          'text-base leading-8 text-white/80 md:text-lg',
+          align === 'center' ? 'mx-auto max-w-xl' : 'max-w-2xl'
+        ]}>{copy}</p>
+      )}
+    </div>
+  </div>
+</section>

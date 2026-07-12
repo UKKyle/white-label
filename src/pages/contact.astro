@@ -1,0 +1,220 @@
+---
+import DatePickerField from '../components/DatePickerField.astro';
+import Layout from '../layouts/Layout.astro';
+import AllergenNotice from '../components/AllergenNotice.astro';
+import PageHero from '../components/PageHero.astro';
+import { listUnavailableDates } from '../lib/availabilityStore';
+import { brand } from '../data/site';
+import { getAdapterEnv } from '../lib/runtimeEnv';
+import { buildSeo } from '../lib/seo';
+import { businessConfig } from '../config/business';
+
+export const prerender = false;
+
+const seo = buildSeo('Contact', 'Contact the store team, ask questions, and start an order enquiry.', '/contact');
+const unavailableDates = await listUnavailableDates(getAdapterEnv(Astro)).catch(() => []);
+---
+
+<Layout title={seo.title} description={seo.description}>
+  <PageHero align="center" title="Let’s plan your order" />
+  <section class="warm-stage site-shell site-section-tight">
+    <div class="mx-auto grid max-w-6xl gap-8 md:gap-10 lg:grid-cols-[0.72fr_1.28fr]">
+      <div class="card-shell p-8 md:p-9">
+        <h2 class="text-2xl font-semibold text-[var(--brand-ink)]">Tell us what you need and when you need it.</h2>
+        <p class="mt-4 text-sm leading-7 text-[var(--brand-ink)]">Share your date, serving size, theme or flavour ideas, plus whether you need collection or local delivery. You can also email <a class="text-[var(--brand-purple)]" href={`mailto:${brand.email}`}>{brand.email}</a> if that is easier.</p>
+        {businessConfig.social.whatsapp && <a class="mt-6 inline-flex rounded-[10px] bg-[var(--brand-purple)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--brand-purple-deep)]" href={businessConfig.social.whatsapp}>Message on WhatsApp</a>}
+      </div>
+      <form
+        id="contact-form"
+        class="card-shell premium-form-stack p-8 md:p-9"
+        method="post"
+        action="https://api.web3forms.com/submit"
+      >
+        <input type="hidden" name="csrfToken" value={Astro.locals.csrfToken} />
+        <input type="hidden" name="enquiryContext" id="enquiry-context" value="" />
+        <div class="pointer-events-none absolute -left-[100vw] h-px w-px overflow-hidden opacity-0" aria-hidden="true">
+          <label tabindex="-1">
+            Company
+            <input type="text" name="company" tabindex="-1" autocomplete="off" aria-hidden="true" />
+          </label>
+        </div>
+        <div class="premium-form-grid">
+          <label class="premium-field">
+            <span>Name</span>
+            <input class="input-shell" type="text" name="name" required maxlength="120" autocomplete="name" />
+          </label>
+          <label class="premium-field">
+            <span>Email</span>
+            <input class="input-shell" type="email" name="email" required maxlength="320" autocomplete="email" />
+          </label>
+        </div>
+        <div class="premium-form-grid">
+          <label class="premium-field">
+            <span>Phone</span>
+            <input class="input-shell" type="tel" name="phone" maxlength="40" autocomplete="tel" />
+          </label>
+          <DatePickerField
+            id="contact-requested-date"
+            name="requestedDate"
+            label="Requested date"
+            optionalLabel="Optional"
+            unavailableDates={unavailableDates}
+          />
+        </div>
+        <label class="premium-field">
+          <span>Allergies, intolerances or dietary requirements</span>
+          <textarea
+            class="input-shell min-h-28"
+            name="allergyInfo"
+            maxlength="600"
+            placeholder="Please tell us about any allergies, intolerances or dietary requirements before ordering."
+          ></textarea>
+        </label>
+        <label class="premium-field">
+          <span>Message</span>
+          <textarea class="input-shell min-h-40" name="message" required maxlength="2000"></textarea>
+        </label>
+        <div class="compliance-stack">
+          <AllergenNotice />
+          <label class="compliance-check">
+            <input
+              id="contact-terms-accepted"
+              class="compliance-check__input"
+              type="checkbox"
+              name="termsAccepted"
+              required
+            />
+            <span class="compliance-check__copy">
+              I have read and agree to the <a href="/terms" class="compliance-inline-link">Terms &amp; Conditions</a>.
+            </span>
+          </label>
+          <label class="compliance-check">
+            <input
+              id="contact-allergen-acknowledged"
+              class="compliance-check__input"
+              type="checkbox"
+              name="allergenAcknowledged"
+              required
+            />
+            <span class="compliance-check__copy">
+              I understand that products may contain or come into contact with allergens, and I will provide any allergy, intolerance or dietary information before placing an order.
+            </span>
+          </label>
+          <p class="compliance-note">
+            We use your details to respond to your enquiry, manage your order and provide our services. Your information is handled as described in our <a href="/privacy" class="compliance-inline-link">Privacy Policy</a>.
+          </p>
+        </div>
+        <div id="contact-status" class="hidden rounded-[12px] border px-4 py-3 text-sm" role="status" aria-live="polite"></div>
+        <button id="contact-submit" class="rounded-[10px] bg-[var(--brand-purple)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[var(--brand-purple-deep)] disabled:cursor-not-allowed disabled:opacity-70" type="submit">Send enquiry</button>
+      </form>
+    </div>
+  </section>
+
+  <script is:inline nonce={Astro.locals.cspNonce}>
+    const form = document.getElementById('contact-form');
+    const status = document.getElementById('contact-status');
+    const submit = document.getElementById('contact-submit');
+    const enquiryContext = document.getElementById('enquiry-context');
+    const termsAccepted = document.getElementById('contact-terms-accepted');
+    const allergenAcknowledged = document.getElementById('contact-allergen-acknowledged');
+
+    const applyCheckboxValidation = (field, message) => {
+      if (!(field instanceof HTMLInputElement)) return;
+      const update = () => field.setCustomValidity(field.checked ? '' : message);
+      update();
+      field.addEventListener('change', update);
+      field.addEventListener('input', update);
+    };
+
+    applyCheckboxValidation(termsAccepted, 'Please confirm that you have read and agree to the Terms & Conditions.');
+    applyCheckboxValidation(allergenAcknowledged, 'Please confirm that you understand allergen information should be provided before ordering.');
+    const refreshComplianceValidation = () => {
+      if (termsAccepted instanceof HTMLInputElement) {
+        termsAccepted.setCustomValidity(termsAccepted.checked ? '' : 'Please confirm that you have read and agree to the Terms & Conditions.');
+      }
+
+      if (allergenAcknowledged instanceof HTMLInputElement) {
+        allergenAcknowledged.setCustomValidity(allergenAcknowledged.checked ? '' : 'Please confirm that you understand allergen information should be provided before ordering.');
+      }
+    };
+
+    if (enquiryContext instanceof HTMLInputElement) {
+      const params = new URLSearchParams(window.location.search);
+      const contextParts = [];
+
+      for (const [key, value] of params.entries()) {
+        if (value.trim()) {
+          contextParts.push(`${key}: ${value.trim()}`);
+        }
+      }
+
+      enquiryContext.value = contextParts.join(' | ').slice(0, 1200);
+    }
+
+    const showStatus = (message, type) => {
+      if (!(status instanceof HTMLElement)) return;
+      status.textContent = message;
+      status.classList.remove(
+        'hidden',
+        'border-emerald-200',
+        'bg-emerald-50',
+        'text-emerald-800',
+        'border-rose-200',
+        'bg-rose-50',
+        'text-rose-700'
+      );
+      if (type === 'success') {
+        status.classList.add('border-emerald-200', 'bg-emerald-50', 'text-emerald-800');
+      } else {
+        status.classList.add('border-rose-200', 'bg-rose-50', 'text-rose-700');
+      }
+    };
+
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!(form instanceof HTMLFormElement)) return;
+      if (submit instanceof HTMLButtonElement) {
+        submit.disabled = true;
+        submit.textContent = 'Sending...';
+      }
+
+      try {
+        const honeypot = form.querySelector('input[name="company"]');
+
+        if (honeypot instanceof HTMLInputElement && honeypot.value.trim()) {
+          showStatus('Thanks — we’ve received your enquiry. Your order is not confirmed until we have reviewed availability, confirmed the details with you, and received any required payment or deposit.', 'success');
+          form.reset();
+          refreshComplianceValidation();
+          return;
+        }
+
+        const body = new FormData(form);
+        const response = await fetch('/api/contact', {
+          method: 'POST',
+          body,
+          headers: { Accept: 'application/json' }
+        });
+        const result = await response.json();
+        const sent = response.ok && result?.success !== false;
+        showStatus(
+          sent
+            ? 'Thanks — we’ve received your enquiry. Your order is not confirmed until we have reviewed availability, confirmed the details with you, and received any required payment or deposit.'
+            : result?.message || 'Your message could not be sent right now. Please try again later.',
+          sent ? 'success' : 'error'
+        );
+        if (sent) {
+          form.reset();
+          refreshComplianceValidation();
+        }
+      } catch {
+        showStatus('Sorry, something went wrong while sending your enquiry. Please try again.', 'error');
+      } finally {
+        if (submit instanceof HTMLButtonElement) {
+          submit.disabled = false;
+          submit.textContent = 'Send enquiry';
+        }
+      }
+    });
+  </script>
+  <script type="module" src="/scripts/availability-ui.js"></script>
+</Layout>

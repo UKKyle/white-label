@@ -1,0 +1,79 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/PageHero.astro';
+import { accountOrderStatus, accountOrderTotal, formatAccountDate } from '../../lib/accountPage';
+import { getCustomerSession, listOrdersForAccount } from '../../lib/customerAccountAuth';
+import { formatPrice } from '../../lib/format';
+import { getLoyaltyBalance } from '../../lib/loyalty';
+import { getAdapterEnv } from '../../lib/runtimeEnv';
+import { routes } from '../../lib/routes';
+
+export const prerender = false;
+
+const session = await getCustomerSession(Astro);
+if (!session) return Astro.redirect(routes.accountSignIn);
+
+const env = getAdapterEnv(Astro);
+const orders = session.account.emailVerified ? await listOrdersForAccount(env, session.account, 5) : [];
+const loyalty = session.account.emailVerified ? await getLoyaltyBalance(env, session.account.id) : { points: 0, pence: 0, earnedPoints: 0, earnedPence: 0, redeemedPoints: 0, redeemedPence: 0 };
+---
+
+<Layout title="Account | The Crumb Works" description="View your The Crumb Works account and orders.">
+  <PageHero align="center" title="Your Account" />
+  <section class="warm-stage px-3 pb-18 pt-4 md:px-4">
+    <div class="mx-auto max-w-4xl space-y-5">
+      <div class="premium-form-card">
+        <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p class="text-sm font-semibold text-[var(--brand-ink)]">{[session.account.firstName, session.account.lastName].filter(Boolean).join(' ') || session.account.email}</p>
+            <p class="mt-1 break-all text-sm text-[var(--brand-ink-soft)]">{session.account.email}</p>
+            <p class="mt-2 text-sm leading-7 text-[var(--brand-ink-soft)]">
+              {session.account.emailVerified ? 'Your email is verified and your order history is available.' : 'Please verify your email before viewing order history.'}
+            </p>
+          </div>
+          <form method="post" action="/account/sign-out">
+            <button class="rounded-[10px] border border-[#f4bfd2] px-5 py-3 text-sm font-semibold text-[var(--brand-purple)]" type="submit">Sign out</button>
+          </form>
+        </div>
+      </div>
+
+      <section class="premium-form-card">
+        <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p class="text-sm font-semibold text-[var(--brand-ink)]">Your Loyalty Points</p>
+            <p class="mt-2 text-4xl font-semibold text-[var(--brand-ink)]">{loyalty.points} points</p>
+            <p class="mt-1 text-sm text-[var(--brand-ink-soft)]">Worth {formatPrice(loyalty.pence / 100)}. Earn 5% back on eligible paid orders.</p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <a href={routes.accountLoyalty} class="rounded-[10px] bg-[var(--brand-purple)] px-5 py-3 text-sm font-semibold text-white">View activity</a>
+            <a href="/loyalty" class="rounded-[10px] border border-[#f4bfd2] px-5 py-3 text-sm font-semibold text-[var(--brand-purple)]">How it works</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="premium-form-card">
+        <div class="flex items-center justify-between gap-4">
+          <h2 class="text-lg font-semibold text-[var(--brand-ink)]">Recent orders</h2>
+          <a href={routes.accountOrders} class="text-sm font-semibold text-[var(--brand-purple)]">View all</a>
+        </div>
+        {session.account.emailVerified ? (
+          orders.length ? (
+            <div class="mt-4 divide-y divide-[#f8d8e4]">
+              {orders.map((order) => (
+                <a href={routes.accountOrderDetail(order.reference)} class="grid gap-1 py-4 text-sm md:grid-cols-[1fr_auto]">
+                  <span class="font-semibold text-[var(--brand-ink)]">Order #{order.orderNumber}</span>
+                  <span class="text-[var(--brand-ink-soft)]">{accountOrderTotal(order)}</span>
+                  <span class="text-[var(--brand-ink-soft)]">{formatAccountDate(order.createdAt)} · {accountOrderStatus(order)}</span>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p class="mt-4 text-sm leading-7 text-[var(--brand-ink-soft)]">No orders are linked to your account yet.</p>
+          )
+        ) : (
+          <p class="mt-4 text-sm leading-7 text-[var(--brand-ink-soft)]">Check your inbox for the verification email, then return here.</p>
+        )}
+      </section>
+    </div>
+  </section>
+</Layout>

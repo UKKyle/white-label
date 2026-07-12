@@ -1,0 +1,67 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/PageHero.astro';
+import { buildCustomerSessionCookie, createCustomerSession, verifyCustomerAccountCode } from '../../lib/customerAccountAuth';
+import { getAdapterEnv } from '../../lib/runtimeEnv';
+import { routes } from '../../lib/routes';
+import { checkRateLimit, requestKey } from '../../security/rate-limit';
+import { sanitizeEmail } from '../../security/sanitize';
+
+export const prerender = false;
+
+let email = sanitizeEmail(Astro.url.searchParams.get('email'));
+let error = '';
+
+function maskEmail(value: string) {
+  const [name, domain] = value.split('@');
+  if (!name || !domain) return 'your email address';
+  return `${name.slice(0, 2)}${'*'.repeat(Math.max(2, name.length - 2))}@${domain}`;
+}
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  email = sanitizeEmail(form.get('email'));
+  const code = String(form.get('code') ?? '').trim();
+  const emailAttemptKey = `${Astro.url.pathname}:email:${email || 'blank'}`;
+
+  if (!checkRateLimit(requestKey(Astro.request), 6, 60_000) || !checkRateLimit(emailAttemptKey, 6, 15 * 60_000)) {
+    error = 'Too many attempts. Please wait a moment and try again.';
+  } else {
+    const env = getAdapterEnv(Astro);
+    const account = await verifyCustomerAccountCode(env, email, code);
+    if (account) {
+      const { token } = await createCustomerSession(env, account);
+      return new Response(null, {
+        status: 303,
+        headers: {
+          Location: routes.account,
+          'Set-Cookie': buildCustomerSessionCookie(env, token),
+        },
+      });
+    }
+    error = 'That code is incorrect or has expired.';
+  }
+}
+---
+
+<Layout title="Verify Account | The Crumb Works" description="Verify your The Crumb Works customer account.">
+  <PageHero align="center" title="Check Your Email" />
+  <section class="warm-stage px-3 pb-18 pt-4 md:px-4">
+    <form method="post" class="mx-auto max-w-xl premium-form-card space-y-4">
+      <p class="text-sm leading-7 text-[var(--brand-ink-soft)]">
+        We sent a six-digit verification code to {maskEmail(email)}. The code expires in 15 minutes.
+      </p>
+      {error && <p class="rounded-[12px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+      <input type="hidden" name="email" value={email} />
+      <label class="premium-field">
+        <span>Verification code</span>
+        <input class="input-shell text-center text-xl font-semibold tracking-[0.18em]" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required />
+      </label>
+      <button class="w-full rounded-[10px] bg-[var(--brand-ink)] px-6 py-3 text-sm font-semibold text-white" type="submit">Verify account</button>
+      <div class="flex flex-wrap justify-center gap-4 text-sm">
+        <a class="font-semibold text-[var(--brand-purple)]" href={`/account/resend-verification?email=${encodeURIComponent(email)}`}>Resend code</a>
+        <a class="font-semibold text-[var(--brand-purple)]" href={routes.accountSignUp}>Change email</a>
+      </div>
+    </form>
+  </section>
+</Layout>

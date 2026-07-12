@@ -1,0 +1,41 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+---
+
+<Layout title="Loyalty Points | The Crumb Works" description="Earn and redeem The Crumb Works Loyalty Points with a verified customer account.">
+  <PageHero align="center" title="Loyalty Points" />
+  <section class="warm-stage px-3 pb-18 pt-4 md:px-4">
+    <div class="mx-auto max-w-4xl space-y-5">
+      <div class="premium-form-card">
+        <p class="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--brand-ink-soft)]">Crumb Club</p>
+        <h2 class="mt-2 text-3xl font-semibold text-[var(--brand-ink)]">Earn 5% back on eligible orders.</h2>
+        <p class="mt-4 text-sm leading-7 text-[var(--brand-ink-soft)]">
+          Create and verify a customer account to earn Loyalty Points on eligible paid orders. 100 points = £1.00 to redeem against future eligible product value at checkout.
+        </p>
+      </div>
+
+      <div class="grid gap-4 md:grid-cols-3">
+        <article class="premium-form-card">
+          <h3 class="text-lg font-semibold text-[var(--brand-ink)]">Earn</h3>
+          <p class="mt-2 text-sm leading-7 text-[var(--brand-ink-soft)]">Verified account customers earn 5% back after an order reaches paid status. Points are rounded down to the nearest whole penny.</p>
+        </article>
+        <article class="premium-form-card">
+          <h3 class="text-lg font-semibold text-[var(--brand-ink)]">Redeem</h3>
+          <p class="mt-2 text-sm leading-7 text-[var(--brand-ink-soft)]">Apply available points during cart checkout. Points reduce eligible product value after discounts, but not delivery charges or excluded fees. Checkout keeps at least £1.00 payable through the normal payment flow.</p>
+        </article>
+        <article class="premium-form-card">
+          <h3 class="text-lg font-semibold text-[var(--brand-ink)]">Review</h3>
+          <p class="mt-2 text-sm leading-7 text-[var(--brand-ink-soft)]">Your account shows your points balance, monetary value and activity history. Points are linked to your account and cannot be transferred or withdrawn as cash.</p>
+        </article>
+      </div>
+
+      <section class="premium-form-card space-y-4 text-sm leading-7 text-[var(--brand-ink-soft)]">
+        <h2 class="text-xl font-semibold text-[var(--brand-ink)]">Important details</h2>
+        <p>Guest checkout does not automatically earn points. If an eligible paid order is securely linked to a verified account under the account order-linking rules, it may qualify from that point onward.</p>
+        <p>Points are not earned on any portion of an order paid with Loyalty Points. Refunds, failed payments, expired checkouts or cancellations may reverse points. If a reversal makes a balance negative, the account remains accessible but redemption is blocked until the balance is positive again.</p>
+        <p>Points do not currently expire. We will update this page if that changes.</p>
+      </section>
+    </div>
+  </section>
+</Layout>

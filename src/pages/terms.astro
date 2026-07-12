@@ -1,0 +1,28 @@
+---
+import Layout from '../layouts/Layout.astro';
+import TermsContent from '../components/TermsContent.astro';
+import { buildSeo } from '../lib/seo';
+
+const seo = buildSeo('Terms', 'Terms and conditions for Crumb Works cake, brownie, cupcake and custom cake orders.', '/terms');
+---
+
+<Layout title={seo.title} description={seo.description}>
+  <section class="warm-stage px-3 pb-16 pt-28 md:px-4 md:pb-18 md:pt-32">
+    <div class="mx-auto max-w-5xl">
+      <div class="terms-page-shell">
+        <div class="terms-page-shell__header rainbow-bubble-stage isolate" data-rainbow-parallax data-rainbow-depth="0.5" data-rainbow-direction="-1">
+          <h1 class="terms-page-shell__title">Terms &amp; Conditions</h1>
+          <p class="terms-page-shell__copy">
+            Please read these terms before placing an order with The Crumb Works.
+          </p>
+          <p class="terms-page-shell__supporting">
+            These terms explain how orders, payments, cancellations, collections, deliveries, custom designs and allergy information are handled.
+          </p>
+        </div>
+      </div>
+      <div class="terms-page-shell terms-page-shell--content">
+      <TermsContent />
+      </div>
+    </div>
+  </section>
+</Layout>

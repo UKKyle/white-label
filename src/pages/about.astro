@@ -1,0 +1,93 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import { buildSeo } from '../lib/seo';
+import { businessConfig } from '../config/business';
+
+const seo = buildSeo('About', `About ${businessConfig.name} and how this white-label storefront can be adapted for a new brand.`, '/about');
+
+const aboutCards = [
+  {
+    eyebrow: 'Made to impress',
+    title: `What ${businessConfig.name} is ready for`,
+    items: [
+      'Celebration cakes made around the style, colours and flavour profile you want.',
+      'Cupcake boxes, brownies and treat boxes for gifting, parties and dessert tables.',
+      'Handmade small-batch bakes with a polished finish for special occasions.',
+    ],
+  },
+  {
+    eyebrow: 'Simple steps',
+    title: 'How ordering works',
+    items: [
+      'Use the shop for ready-to-order boxes and simple menu favourites.',
+      'Use the contact form for celebration cakes, event bakes and date-specific requests.',
+      'Share your date, serving size, flavour ideas and collection or delivery preference.',
+    ],
+  },
+  {
+    eyebrow: 'Local bakes',
+    title: 'Birmingham based service',
+    items: [
+      'Collection and local delivery are available across Birmingham and nearby areas.',
+      'Early enquiries are best for custom cakes and busy dates across weekends and events.',
+      'Once we review your enquiry, we confirm availability and the best next steps for your order.',
+    ],
+  },
+];
+---
+
+<Layout title={seo.title} description={seo.description}>
+  <PageHero align="center" title="A storefront foundation ready for your brand." />
+  <section class="relative overflow-hidden bg-[var(--brand-lavender)] px-3 py-14 md:px-4 md:py-20">
+    <div class="pointer-events-none absolute left-[-3rem] top-16 h-36 w-36 rounded-full bg-[var(--brand-pink)]/18 blur-3xl"></div>
+    <div class="pointer-events-none absolute bottom-8 right-[-2rem] h-44 w-44 rounded-full bg-[#ffb4d4]/30 blur-3xl"></div>
+
+    <div class="relative mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.86fr_1.14fr] lg:items-start">
+      <div class="placeholder-pack overflow-hidden p-7 md:p-10" data-rainbow-parallax data-rainbow-depth="0.72" data-rainbow-direction="1">
+        <div class="relative z-10">
+          <p class="mb-4 inline-flex rounded-full bg-white/92 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[var(--brand-purple)] shadow-[0_8px_20px_rgba(36,29,66,0.1)]">
+            About the bakes
+          </p>
+          <h2 class="poster-title max-w-xl text-4xl text-white md:text-6xl">
+            Big celebration energy, handmade in small batches.
+          </h2>
+        </div>
+      </div>
+
+      <div class="grid gap-4 md:gap-5">
+        {aboutCards.map((card, index) => (
+          <article class="group relative overflow-hidden rounded-[20px] border border-[#f3cad9] bg-white p-5 shadow-[0_12px_30px_rgba(36,29,66,0.08)] transition hover:-translate-y-0.5 hover:border-[var(--brand-pink)] hover:shadow-[0_16px_36px_rgba(36,29,66,0.12)] md:p-6">
+            <div class="pointer-events-none absolute right-[-2.5rem] top-[-2.5rem] h-28 w-28 rounded-full bg-[#fff0f7] transition group-hover:bg-[#ffe1f1]"></div>
+            <div class="relative grid gap-5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:items-start">
+              <div class="flex flex-wrap items-center gap-2 sm:block">
+                <span class="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[var(--brand-purple)] font-display text-2xl leading-none text-white shadow-[0_10px_24px_rgba(255,76,199,0.24)]">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <p class="rounded-full bg-[#fff2f7] px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] text-[var(--brand-purple)] sm:mt-4 sm:inline-flex">
+                  {card.eyebrow}
+                </p>
+              </div>
+
+              <div>
+                <div>
+                  <h3 class="poster-title max-w-lg text-3xl leading-none text-[var(--brand-purple)] md:text-4xl">
+                    {card.title}
+                  </h3>
+                </div>
+                <ul class="mt-5 grid gap-3 text-sm leading-7 text-[var(--brand-ink)]">
+                  {card.items.map((item) => (
+                    <li class="flex gap-3">
+                      <span class="mt-2 h-2 w-2 shrink-0 rounded-full bg-[var(--brand-pink)] shadow-[0_0_0_4px_rgba(255,76,199,0.12)]"></span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+</Layout>

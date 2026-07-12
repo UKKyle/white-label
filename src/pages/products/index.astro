@@ -1,0 +1,58 @@
+---
+import PageHero from '../../components/PageHero.astro';
+import ProductCard from '../../components/ProductCard.astro';
+import Layout from '../../layouts/Layout.astro';
+import { getManagedImageSrc } from '../../lib/imageStore';
+import { productImageIdsBySlug, withManagedProductImages } from '../../lib/managedImages';
+import { listOnlineStoreProducts } from '../../lib/productStore';
+import { getAdapterEnv } from '../../lib/runtimeEnv';
+import { buildSeo } from '../../lib/seo';
+
+const seo = buildSeo('Products', 'Shop celebration cakes, cupcake boxes, brownies and treat boxes from Crumb Works in Birmingham.', '/products');
+const env = getAdapterEnv(Astro);
+const baseProducts = await listOnlineStoreProducts(env);
+const imageSrcs = Object.fromEntries(await Promise.all(
+  [...new Set(Object.values(productImageIdsBySlug))].map(async (id) => [id, await getManagedImageSrc(env, id)])
+));
+const products = withManagedProductImages(baseProducts, (id) => String(imageSrcs[id] ?? '')).sort((left, right) => {
+  const categoryOrder = left.category.localeCompare(right.category, 'en-GB', { sensitivity: 'base' });
+
+  if (categoryOrder !== 0) {
+    return categoryOrder;
+  }
+
+  return left.name.localeCompare(right.name, 'en-GB', { sensitivity: 'base' });
+});
+const categoryOptions = [...new Set(products.map((product) => product.category))];
+---
+
+<Layout title={seo.title} description={seo.description}>
+  <PageHero align="center" title="Shop the sweet lineup." />
+  <section class="warm-stage px-3 pb-18 pt-4 md:px-4">
+    <div class="mx-auto max-w-7xl">
+      <div class="mb-3 flex items-center justify-start gap-2 md:mb-4 md:gap-2.5">
+        <select id="products-category-filter" class="shop-filter-select w-[7.75rem]" aria-label="Filter products by type">
+          <option value="all">All bakes</option>
+          {categoryOptions.map((category) => (
+            <option value={category}>{category}</option>
+          ))}
+        </select>
+
+        <select id="products-price-sort" class="shop-filter-select w-[9rem]" aria-label="Sort products by price">
+          <option value="default">Featured</option>
+          <option value="price-asc">Price: low to high</option>
+          <option value="price-desc">Price: high to low</option>
+        </select>
+        </div>
+
+      <div id="products-grid" class="grid grid-cols-2 gap-4 md:gap-5.5 lg:grid-cols-3 lg:gap-6">
+        {products.map((product) => <ProductCard product={product} />)}
+      </div>
+      <p id="products-empty-state" class="mt-6 hidden rounded-[16px] border border-[#f4c8d9] bg-white px-4 py-4 text-sm text-[var(--brand-ink-soft)]">
+        No products match that selection right now.
+      </p>
+    </div>
+  </section>
+
+  <script type="module" src="/scripts/products-grid.js"></script>
+</Layout>

@@ -1,0 +1,107 @@
+---
+import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
+import { buildThemeCss, businessConfig, businessStructuredData } from '../config/business';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+const canonicalUrl = new URL(Astro.url.pathname, businessConfig.siteUrl).toString();
+const themeCss = buildThemeCss();
+---
+
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="icon" href={businessConfig.branding.faviconPath} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
+    {businessConfig.seo.defaultOgImage && <meta property="og:image" content={new URL(businessConfig.seo.defaultOgImage, businessConfig.siteUrl).toString()} />}
+    <meta name="theme-color" content={businessConfig.branding.primaryColor} />
+    <style is:inline set:html={themeCss}></style>
+    <script type="application/ld+json" set:html={JSON.stringify(businessStructuredData)}></script>
+  </head>
+  <body class="min-h-screen bg-[var(--surface-base)] text-white antialiased">
+    <div class="page-grid"></div>
+    <Header />
+    <main>
+      <slot />
+    </main>
+    <Footer />
+    <script is:inline nonce={Astro.locals.cspNonce}>
+      (() => {
+        const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const cards = Array.from(document.querySelectorAll('[data-rainbow-parallax]'));
+
+        if (!cards.length || motionQuery.matches) return;
+
+        let frame = 0;
+
+        const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+        const update = () => {
+          frame = 0;
+          const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 1;
+
+          cards.forEach((card, index) => {
+            if (!(card instanceof HTMLElement)) return;
+
+            const rect = card.getBoundingClientRect();
+            const cardCenter = rect.top + rect.height / 2;
+            const progress = clamp((viewportHeight / 2 - cardCenter) / viewportHeight, -1, 1);
+            const depth = Number(card.dataset.rainbowDepth || '1') || 1;
+            const direction = Number(card.dataset.rainbowDirection || (index % 2 === 0 ? 1 : -1)) || 1;
+
+            card.style.setProperty('--rainbow-bubble-x', `${progress * 68 * depth * direction}px`);
+            card.style.setProperty('--rainbow-bubble-y', `${progress * -48 * depth}px`);
+            card.style.setProperty('--rainbow-bubble-scale', String(1 + Math.abs(progress) * 0.09 * depth));
+            card.style.setProperty('--rainbow-bubble-rotate', `${progress * 10 * depth * direction}deg`);
+          });
+        };
+
+        const requestUpdate = () => {
+          if (frame) return;
+          frame = window.requestAnimationFrame(update);
+        };
+
+        const reset = () => {
+          if (!motionQuery.matches) return;
+          if (frame) window.cancelAnimationFrame(frame);
+          frame = 0;
+          window.removeEventListener('scroll', requestUpdate);
+          window.removeEventListener('resize', requestUpdate);
+          cards.forEach((card) => {
+            if (!(card instanceof HTMLElement)) return;
+            card.style.removeProperty('--rainbow-bubble-x');
+            card.style.removeProperty('--rainbow-bubble-y');
+            card.style.removeProperty('--rainbow-bubble-scale');
+            card.style.removeProperty('--rainbow-bubble-rotate');
+          });
+        };
+
+        window.addEventListener('scroll', requestUpdate, { passive: true });
+        window.addEventListener('resize', requestUpdate);
+        motionQuery.addEventListener?.('change', reset);
+        window.addEventListener('pagehide', () => {
+          if (frame) window.cancelAnimationFrame(frame);
+          window.removeEventListener('scroll', requestUpdate);
+          window.removeEventListener('resize', requestUpdate);
+          motionQuery.removeEventListener?.('change', reset);
+        });
+
+        update();
+      })();
+    </script>
+  </body>
+</html>

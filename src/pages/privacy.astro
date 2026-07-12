@@ -1,0 +1,205 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { brand } from '../data/site';
+import { buildSeo } from '../lib/seo';
+
+const seo = buildSeo('Privacy', 'Privacy policy for The Crumb Works website, enquiries and orders.', '/privacy');
+const lastUpdated = '8 July 2026';
+
+const sections = [
+  {
+    title: 'Who we are',
+    paragraphs: [
+      'This website is operated by The Crumb Works.',
+      `This Privacy Policy explains how we collect, use, store and handle personal information when you contact us, submit an enquiry, place or begin an order, or use features on our website. If you have questions about this policy, you can contact us at ${brand.email}.`,
+      'The Crumb Works is registered with the Information Commissioner\'s Office. ICO registration number: [to be added once issued].'
+    ]
+  },
+  {
+    title: 'What information we collect',
+    paragraphs: [
+      'We may collect information when you submit a contact form, send a custom order enquiry, place or begin an order, use cart or checkout features, contact The Crumb Works by email, messaging, social media or other channels, or otherwise interact with the website.',
+      'Depending on how you use the site, this information may include:'
+    ],
+    list: [
+      'your name, email address and phone number;',
+      'order details, requested dates and collection or delivery details;',
+      'custom cake notes, design ideas, flavour requests or occasion details;',
+      'allergy, intolerance or dietary information you choose to provide;',
+      'messages, enquiry history and customer service notes;',
+      'payment or checkout references, order references and payment status information;',
+      'basic technical information such as browser or device data, security logs or limited usage information where needed to operate and protect the site.'
+    ]
+  },
+  {
+    title: 'Why we use personal information',
+    paragraphs: [
+      'We use personal information only where we have a lawful basis to do so. In practical terms, this may include using information to respond to enquiries, prepare quotes, take steps before entering into a contract, fulfil confirmed orders, keep business, accounting and legal records, protect website security, provide customer service and manage order-related issues.',
+      'If you voluntarily provide allergy, intolerance or dietary information, we use that information to help assess your request, discuss suitability, prepare your order where accepted, and keep appropriate order records.'
+    ]
+  },
+  {
+    title: 'Contact forms and enquiries',
+    paragraphs: [
+      'When you submit an enquiry, we use the information you provide to respond, discuss availability, prepare quotes, manage your request and keep appropriate business records.',
+      'Submitting an enquiry does not automatically confirm an order. Order confirmation is handled separately under our Terms & Conditions.'
+    ]
+  },
+  {
+    title: 'Orders, cart and checkout',
+    paragraphs: [
+      'We may use customer and order information to prepare and manage orders, confirm order details, arrange collection or delivery, keep order records and deal with customer service questions, changes, cancellations, refunds or order issues.',
+      'Payment-related information may be handled by trusted checkout or payment services. We may receive limited payment references, order references or payment status information needed to manage your order, but we do not aim to store full card details directly.'
+    ]
+  },
+  {
+    title: 'Admin tools and internal order handling',
+    paragraphs: [
+      'We may store and access enquiry and order information through internal admin and order management tools so we can manage website content, products, customer requests, orders, fulfilment notes, order statuses and customer support.',
+      'This helps us keep track of collections, deliveries, payment status information, follow-up messages and the progress of customer orders in a practical and organised way.'
+    ]
+  },
+  {
+    title: 'Trusted third-party services',
+    paragraphs: [
+      'We may use trusted third-party service providers to help operate our website, process enquiries, manage orders, support checkout or payment-related services, send emails, protect the website, store business records and provide customer support.',
+      'These providers only receive the information needed to provide their services to us, and we expect them to handle personal information securely and appropriately.',
+      'We do not sell customer personal information.'
+    ],
+    list: [
+      'website hosting and security services;',
+      'email services;',
+      'payment providers;',
+      'form and spam protection tools;',
+      'delivery or courier support if used;',
+      'admin, CMS and order management tools.'
+    ]
+  },
+  {
+    title: 'Allergies and dietary information',
+    emphasis: true,
+    paragraphs: [
+      'If you provide allergy, intolerance or dietary information, we use this to help assess your request, discuss suitability, prepare your order where accepted, and keep appropriate order records.',
+      'For more information about order responsibilities, allergen communication and product suitability, please also read our Terms & Conditions.'
+    ]
+  },
+  {
+    title: 'Browser storage, cart storage and terms acknowledgement',
+    paragraphs: [
+      'We currently use browser storage and essential/functional cookies where needed for cart, website functionality, security, admin access or terms acknowledgement. If analytics, advertising or tracking cookies are introduced, this policy will be updated and consent will be requested where required.',
+      'Browser storage information is stored on your device and can usually be cleared through your browser settings.'
+    ]
+  },
+  {
+    title: 'How long information is kept',
+    paragraphs: [
+      'We keep customer enquiry and order information only for as long as reasonably needed to respond to enquiries, manage orders, handle customer service, maintain business records, resolve disputes, comply with legal or accounting obligations, and support food safety or allergen traceability where relevant.',
+      'We do not keep information for longer than reasonably necessary where it is no longer required for these purposes.'
+    ]
+  },
+  {
+    title: 'Your rights',
+    paragraphs: [
+      'You may have rights to access, correct, delete, restrict or object to certain uses of your personal information. To make a request, contact us using the details on this page.',
+      'You can also complain to the Information Commissioner\'s Office, the UK data protection regulator, at ico.org.uk or by calling 0303 123 1113.'
+    ]
+  },
+  {
+    title: 'Security',
+    paragraphs: [
+      'We take reasonable steps to protect customer information, including limiting access to internal systems and using appropriate website, storage and security services.',
+      'However, no online system can be guaranteed to be completely secure.'
+    ]
+  },
+  {
+    title: 'Children’s information',
+    paragraphs: [
+      'The website is intended for customers who can make enquiries or purchases responsibly. Children should not submit personal information through the website without the involvement of a parent or guardian.'
+    ]
+  },
+  {
+    title: 'Links to other websites',
+    paragraphs: [
+      'Our website may contain links to third-party websites or services. If you follow an external link, that website or service will have its own privacy practices and policies, and we are not responsible for them.'
+    ]
+  },
+  {
+    title: 'Changes to this Privacy Policy',
+    paragraphs: [
+      'We may update this Privacy Policy from time to time to reflect changes to the website, our business processes or legal obligations. Please check this page occasionally for the latest version.'
+    ]
+  }
+];
+---
+
+<Layout title={seo.title} description={seo.description}>
+  <section class="warm-stage px-3 pb-16 pt-28 md:px-4 md:pb-18 md:pt-32">
+    <div class="mx-auto max-w-5xl">
+      <div class="terms-page-shell">
+        <div class="terms-page-shell__header rainbow-bubble-stage isolate" data-rainbow-parallax data-rainbow-depth="0.5" data-rainbow-direction="-1">
+          <h1 class="terms-page-shell__title">Privacy Policy</h1>
+          <p class="terms-page-shell__copy">
+            This page explains what information The Crumb Works may collect, why it is collected and how it is used when you contact us, place or begin an order, or use the website.
+          </p>
+          <p class="terms-page-shell__supporting">
+            It is a customer information notice. For order rules, cancellations, fulfilment terms and customer responsibilities, please read our <a href="/terms" class="terms-content__text-link">Terms &amp; Conditions</a>.
+          </p>
+        </div>
+      </div>
+
+      <div class="terms-page-shell terms-page-shell--content">
+        <div class="terms-content">
+          <div class="terms-content__intro">
+            <div class="terms-content__meta">
+              <p class="policy-kicker">Last updated</p>
+              <p class="terms-content__updated">{lastUpdated}</p>
+            </div>
+            <div class="terms-content__summary">
+              <h2 class="policy-heading">A practical guide to how your information is handled</h2>
+              <p>
+                We aim to be transparent about what information we collect, why we collect it, how it is used, when information may be processed to help us run the website and manage orders, and how you can contact us with questions.
+              </p>
+            </div>
+            <div class="terms-content__quicklinks">
+              <a href="/terms" class="terms-content__pill">View Terms &amp; Conditions</a>
+              <a href="/contact" class="terms-content__pill terms-content__pill--primary">Contact us</a>
+            </div>
+          </div>
+
+          {sections.map((section, index) => (
+            <div class:list={['terms-content__card terms-content__card--page', section.emphasis && 'terms-content__card--alert']}>
+              <div class="policy-stack">
+                <p class="policy-kicker">Section {index + 1}</p>
+                <h2 class="policy-heading">{section.title}</h2>
+                {section.paragraphs.map((paragraph) => (
+                  <p>{paragraph}</p>
+                ))}
+                {section.list && (
+                  <ul class="policy-list">
+                    {section.list.map((item) => (
+                      <li>{item}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          ))}
+
+          <div class="terms-content__contact">
+            <div class="policy-stack">
+              <p class="policy-kicker">Contact</p>
+              <h2 class="policy-heading">Questions about this Privacy Policy?</h2>
+              <p>
+                If you have any questions about this Privacy Policy or how your information is handled, contact us at <a href={`mailto:${brand.email}`} class="terms-content__text-link">{brand.email}</a>.
+              </p>
+              <div class="terms-content__actions">
+                <a href="/contact" class="terms-content__button">Go to contact page</a>
+                <a href="/terms" class="terms-content__text-link">Read Terms &amp; Conditions</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</Layout>

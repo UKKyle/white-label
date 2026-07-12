@@ -1,0 +1,281 @@
+---
+import Layout from '../layouts/Layout.astro';
+import DatePickerField from '../components/DatePickerField.astro';
+import PageHero from '../components/PageHero.astro';
+import { listUnavailableDates } from '../lib/availabilityStore';
+import { listOnlineStoreProducts } from '../lib/productStore';
+import { getCustomerSession } from '../lib/customerAccountAuth';
+import { getAdapterEnv } from '../lib/runtimeEnv';
+import { buildSeo } from '../lib/seo';
+
+export const prerender = false;
+
+const seo = buildSeo('Cart', 'Review your selected Crumb Works products before sending your order enquiry.', '/cart');
+const env = getAdapterEnv(Astro);
+const unavailableDates = await listUnavailableDates(env).catch(() => []);
+const enquireOnlyProductSlugs = (await listOnlineStoreProducts(env).catch(() => [])).filter((product) => product.enquireOnly).map((product) => product.slug);
+const customerSession = await getCustomerSession(Astro).catch(() => null);
+const accountEmail = customerSession?.account.emailVerified ? customerSession.account.email : '';
+const hasVerifiedAccount = Boolean(customerSession?.account.emailVerified);
+---
+
+<Layout title={seo.title} description={seo.description}>
+  <PageHero align="center" title="Cart" />
+  <section class="warm-stage px-3 pb-18 pt-4 md:px-4">
+    <div class="mx-auto max-w-5xl">
+      <div class="mb-8 max-w-2xl">
+        <p class="text-sm leading-7 text-[var(--brand-ink-soft)]">
+          Review your selected bakes, update quantities, then continue to checkout so we can receive and manually confirm the order details with you.
+        </p>
+      </div>
+
+      <div id="cart-empty" class="hidden rounded-[22px] border border-[#f4c8d9] bg-white p-8 text-center shadow-[0_12px_36px_rgba(27,29,39,0.08)]">
+        <h2 class="text-3xl font-semibold text-[var(--brand-ink)]">Your cart is empty.</h2>
+        <p class="mx-auto mt-3 max-w-xl text-sm leading-7 text-[var(--brand-ink-soft)]">Browse our cakes, cupcakes, brownies and treat boxes, or start a custom cake enquiry.</p>
+        <div class="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+          <a href="/products" class="inline-flex justify-center rounded-[10px] bg-[var(--brand-purple)] px-6 py-3 text-sm font-semibold text-white">Browse products</a>
+          <a href="/contact" class="inline-flex justify-center rounded-[10px] border border-[#f4bfd2] px-6 py-3 text-sm font-semibold text-[var(--brand-purple)]">Start a custom enquiry</a>
+        </div>
+      </div>
+
+      <div id="cart-content" class="hidden space-y-6" data-enquire-only-products={JSON.stringify(enquireOnlyProductSlugs)} data-account-email={accountEmail} data-has-account={hasVerifiedAccount ? 'true' : 'false'}>
+        <div id="cart-items" class="space-y-4"></div>
+
+        <div class="rounded-[22px] border border-[#f4c8d9] bg-white p-6 shadow-[0_12px_36px_rgba(27,29,39,0.08)]">
+          <div class="flex items-center justify-between gap-4 border-b border-[#f8d8e4] pb-4">
+            <span class="text-sm font-semibold uppercase tracking-[0.18em] text-[var(--brand-ink-soft)]">Total</span>
+            <span id="cart-total" class="text-3xl font-semibold text-[var(--brand-ink)]">£0.00</span>
+          </div>
+
+          <div id="checkout-loyalty-panel" class="premium-form-card mt-5 hidden">
+            <div class="grid gap-3">
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p class="text-sm font-semibold text-[var(--brand-ink)]">Loyalty Points</p>
+                  <p id="checkout-loyalty-summary" class="mt-1 text-sm leading-7 text-[var(--brand-ink-soft)]"></p>
+                </div>
+                <a href="/loyalty" class="text-sm font-semibold text-[var(--brand-purple)]">How points work</a>
+              </div>
+              <div class="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+                <label class="premium-field">
+                  <span class="font-medium">Amount to use</span>
+                  <input id="checkout-loyalty-amount" type="number" min="0" step="0.01" class="input-shell" placeholder="0.00" />
+                </label>
+                <button id="checkout-loyalty-use-max" type="button" class="self-end rounded-[10px] border border-[#f4bfd2] px-5 py-3 text-sm font-semibold text-[var(--brand-purple)]">Use maximum</button>
+                <button id="checkout-loyalty-remove" type="button" class="self-end rounded-[10px] border border-[#f4bfd2] px-5 py-3 text-sm font-semibold text-[var(--brand-ink-soft)]">Remove</button>
+              </div>
+              <p id="checkout-loyalty-status" class="hidden rounded-[12px] border px-4 py-3 text-sm" role="status" aria-live="polite"></p>
+            </div>
+          </div>
+
+          <div class="premium-form-card mt-5">
+            <div class="grid gap-3">
+              <label class="premium-field">
+                <span class="font-medium">Discount code</span>
+                <div class="grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <input id="checkout-discount-code" type="text" class="input-shell uppercase" placeholder="CRUMB10-XXXXXX" autocomplete="off" />
+                  <button id="checkout-discount-apply" type="button" class="rounded-[10px] bg-[var(--brand-purple)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[var(--brand-purple-deep)]">
+                    Apply
+                  </button>
+                </div>
+              </label>
+              <p id="checkout-discount-status" class="hidden rounded-[12px] border px-4 py-3 text-sm" role="status" aria-live="polite"></p>
+            </div>
+          </div>
+
+          <div class="premium-form-card mt-5">
+            <div class="premium-form-stack">
+              <div class="premium-section-heading">
+                <p class="text-sm font-semibold text-[var(--brand-ink)]">Customer details</p>
+                <p class="text-sm leading-7 text-[var(--brand-ink-soft)]">
+                  Your details help us confirm your order, arrange collection or delivery, and keep you updated.
+                </p>
+              </div>
+
+              <div class="premium-form-grid">
+                <label class="premium-field">
+                  <span class="font-medium">Full name</span>
+                  <input id="checkout-customer-name" type="text" autocomplete="name" class="input-shell" placeholder="Mady customer" />
+                </label>
+
+                <label class="premium-field">
+                  <span class="font-medium">Email</span>
+                  <input id="checkout-customer-email" type="email" autocomplete="email" class="input-shell" placeholder="name@example.com" value={accountEmail} />
+                </label>
+
+                <label class="premium-field">
+                  <span class="font-medium">Phone</span>
+                  <input id="checkout-customer-phone" type="tel" autocomplete="tel" class="input-shell" placeholder="07..." />
+                </label>
+
+                <DatePickerField
+                  id="checkout-customer-date"
+                  label="Collection or delivery date"
+                  required={true}
+                  unavailableDates={unavailableDates}
+                />
+              </div>
+
+              <div class="premium-form-grid premium-form-grid--fulfilment">
+                <label class="premium-field">
+                  <span class="font-medium">Fulfilment</span>
+                  <select id="checkout-customer-method" class="input-shell">
+                    <option value="collection">Collection</option>
+                    <option value="delivery">Delivery</option>
+                  </select>
+                </label>
+
+                <div id="checkout-fulfilment-details"></div>
+
+                <label class="premium-field md:col-span-2">
+                  <span class="font-medium">Order notes</span>
+                  <textarea id="checkout-customer-notes" class="input-shell min-h-[7.5rem]" placeholder="Allergies, preferred collection time, delivery notes, message on the box..."></textarea>
+                </label>
+              </div>
+
+              <label class="premium-field">
+                <span class="font-medium">Allergies, intolerances or dietary requirements</span>
+                <textarea id="checkout-customer-allergies" class="input-shell min-h-[5.5rem]" placeholder="Please tell us about any allergies, intolerances or dietary requirements before ordering."></textarea>
+              </label>
+              <label class="compliance-check">
+                <input id="checkout-marketing-opt-in" class="compliance-check__input" type="checkbox" />
+                <span class="compliance-check__copy">I'd like to receive occasional emails about new products, seasonal collections and exclusive offers from The Crumb Works.</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="premium-form-card">
+            <p class="text-sm font-semibold text-[var(--brand-ink)]">Secure checkout</p>
+            <p class="mt-2 text-sm leading-7 text-[var(--brand-ink-soft)]">
+              Pay securely online. We still review availability and confirm your order details after checkout.
+            </p>
+            <div class="compliance-stack mt-4">
+              <p class="compliance-note">
+                <button type="button" class="compliance-inline-link compliance-inline-button" data-cart-modal-open="allergen">Allergen information</button> is available before ordering. Our kitchen handles milk, eggs, gluten/wheat, soya, nuts and peanuts. Please contact us before ordering if you have an allergy, intolerance or dietary requirement.
+              </p>
+              <label class="compliance-check">
+                <input id="checkout-terms-accepted" class="compliance-check__input" type="checkbox" />
+                <span class="compliance-check__copy">
+                  I have read and agree to The Crumb Works <button type="button" class="compliance-inline-link compliance-inline-button" data-cart-modal-open="terms">Terms &amp; Conditions</button>.
+                </span>
+              </label>
+              <label class="compliance-check">
+                <input id="checkout-allergen-acknowledged" class="compliance-check__input" type="checkbox" />
+                <span class="compliance-check__copy">
+                  I understand that products may contain or come into contact with allergens, and I will provide any allergy, intolerance or dietary information before placing an order.
+                </span>
+              </label>
+              <p class="compliance-note">
+                We use your details to process your order, manage payment-related information, and arrange collection or delivery. Your information is handled as described in our <button type="button" class="compliance-inline-link compliance-inline-button" data-cart-modal-open="privacy">Privacy Policy</button>.
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-6 space-y-3">
+            <button
+              id="cart-checkout-button"
+              type="button"
+              data-checkout-endpoint="/api/checkout/session"
+              class="block w-full rounded-[10px] bg-[var(--brand-ink)] px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-[var(--brand-purple)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Proceed to checkout
+            </button>
+            <a href="/products" class="block w-full rounded-[10px] border border-[#f4bfd2] px-6 py-3 text-center text-sm text-[var(--brand-ink-soft)]">
+              Continue shopping
+            </a>
+            <button id="clear-cart-button" type="button" aria-label="Clear all items from cart" class="block w-full px-6 py-3 text-center text-sm font-medium text-[var(--brand-ink-soft)] transition hover:text-[var(--brand-ink)]">
+              Clear cart
+            </button>
+          </div>
+
+          <div id="cart-checkout-status" class="mt-4 hidden rounded-[12px] border px-4 py-3 text-sm" role="status" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="cart-legal-modal" class="cart-legal-modal hidden" aria-hidden="true">
+    <button type="button" class="cart-legal-modal__overlay" data-cart-modal-close aria-label="Close information popup"></button>
+    <section class="cart-legal-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="cart-legal-modal-title">
+      <div class="cart-legal-modal__header">
+        <div>
+          <p class="cart-legal-modal__kicker">The Crumb Works</p>
+          <h2 id="cart-legal-modal-title" class="cart-legal-modal__title">Information</h2>
+        </div>
+        <button type="button" class="cart-legal-modal__close" data-cart-modal-close>Close</button>
+      </div>
+
+      <div class="cart-legal-modal__body" data-cart-modal-content="allergen">
+        <h3>Allergen information</h3>
+        <p>Our kitchen handles milk, eggs, gluten/wheat, soya, nuts and peanuts. Some products may also contain or come into contact with other allergens depending on flavours, toppings and decorations.</p>
+        <p>Please tell us about allergies, intolerances or dietary requirements before placing an order. We will review your notes before confirming the order, but we cannot guarantee a completely allergen-free kitchen.</p>
+        <p>The full allergen information page remains available from the site footer.</p>
+      </div>
+
+      <div class="cart-legal-modal__body hidden" data-cart-modal-content="terms">
+        <h3>Terms &amp; Conditions</h3>
+        <p>Orders are handmade and subject to availability. We manually review order details, requested dates, allergies and fulfilment requirements before confirming the order.</p>
+        <p>Please provide accurate contact, collection or delivery, allergy and order information. Bespoke or time-sensitive orders may need extra confirmation before they can be accepted.</p>
+        <p>Cancellations, changes and refunds depend on the order type, preparation stage and notice given. The full Terms &amp; Conditions page remains available from the site footer.</p>
+      </div>
+
+      <div class="cart-legal-modal__body hidden" data-cart-modal-content="privacy">
+        <h3>Privacy Policy</h3>
+        <p>We use the details you provide to process your order, manage payment-related information, contact you about the order, and arrange collection or delivery.</p>
+        <p>Your information may be processed by the services needed to run checkout, payments, order storage and customer communications. We keep order information only for legitimate business, accounting and support purposes.</p>
+        <p>The full Privacy Policy page remains available from the site footer.</p>
+      </div>
+    </section>
+  </div>
+
+  <script is:inline nonce={Astro.locals.cspNonce}>
+    (() => {
+      const modal = document.getElementById('cart-legal-modal');
+      const title = document.getElementById('cart-legal-modal-title');
+      const triggers = document.querySelectorAll('[data-cart-modal-open]');
+      const closeButtons = document.querySelectorAll('[data-cart-modal-close]');
+      const panels = document.querySelectorAll('[data-cart-modal-content]');
+      const titles = {
+        allergen: 'Allergen information',
+        terms: 'Terms & Conditions',
+        privacy: 'Privacy Policy',
+      };
+
+      if (!(modal instanceof HTMLElement)) return;
+
+      const openModal = (key) => {
+        panels.forEach((panel) => {
+          if (panel instanceof HTMLElement) {
+            panel.classList.toggle('hidden', panel.dataset.cartModalContent !== key);
+          }
+        });
+        if (title instanceof HTMLElement) title.textContent = titles[key] || 'Information';
+        modal.classList.remove('hidden');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('cart-legal-modal-open');
+        modal.querySelector('[data-cart-modal-close]')?.focus();
+      };
+
+      const closeModal = () => {
+        modal.classList.add('hidden');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('cart-legal-modal-open');
+      };
+
+      triggers.forEach((trigger) => {
+        trigger.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (trigger instanceof HTMLElement) openModal(trigger.dataset.cartModalOpen || '');
+        });
+      });
+      closeButtons.forEach((button) => button.addEventListener('click', closeModal));
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+      });
+    })();
+  </script>
+
+  <script type="module" src="/scripts/cart.js"></script>
+  <script type="module" src="/scripts/availability-ui.js"></script>
+</Layout>

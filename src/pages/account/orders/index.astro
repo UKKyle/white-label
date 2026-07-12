@@ -1,0 +1,43 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import PageHero from '../../../components/PageHero.astro';
+import { accountOrderStatus, accountOrderTotal, formatAccountDate } from '../../../lib/accountPage';
+import { getCustomerSession, listOrdersForAccount } from '../../../lib/customerAccountAuth';
+import { getAdapterEnv } from '../../../lib/runtimeEnv';
+import { routes } from '../../../lib/routes';
+
+export const prerender = false;
+
+const session = await getCustomerSession(Astro);
+if (!session) return Astro.redirect(routes.accountSignIn);
+if (!session.account.emailVerified) return Astro.redirect(routes.account);
+
+const orders = await listOrdersForAccount(getAdapterEnv(Astro), session.account, 50);
+---
+
+<Layout title="Your Orders | The Crumb Works" description="View your The Crumb Works order history.">
+  <PageHero align="center" title="Your Orders" />
+  <section class="warm-stage px-3 pb-18 pt-4 md:px-4">
+    <div class="mx-auto max-w-4xl">
+      <section class="premium-form-card">
+        {orders.length ? (
+          <div class="divide-y divide-[#f8d8e4]">
+            {orders.map((order) => (
+              <a href={routes.accountOrderDetail(order.reference)} class="grid gap-2 py-4 text-sm md:grid-cols-[1fr_auto]">
+                <span class="font-semibold text-[var(--brand-ink)]">Order #{order.orderNumber}</span>
+                <span class="font-semibold text-[var(--brand-ink)]">{accountOrderTotal(order)}</span>
+                <span class="text-[var(--brand-ink-soft)]">{formatAccountDate(order.createdAt)} · {accountOrderStatus(order)}</span>
+              </a>
+            ))}
+          </div>
+        ) : (
+          <div class="py-8 text-center">
+            <p class="font-semibold text-[var(--brand-ink)]">No orders found</p>
+            <p class="mt-2 text-sm text-[var(--brand-ink-soft)]">Orders appear here after they are linked to your verified email.</p>
+          </div>
+        )}
+      </section>
+    </div>
+  </section>
+</Layout>
+

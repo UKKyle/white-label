@@ -1,0 +1,50 @@
+---
+import { getProductPriceLabel } from '../lib/format';
+import ProductVisual from './ProductVisual.astro';
+import type { Product } from '../types/shop';
+
+interface Props {
+  product: Product;
+}
+
+const { product } = Astro.props;
+---
+
+<article
+  class="card-shell group flex h-full flex-col overflow-hidden"
+  data-product-card
+  data-category={product.category}
+  data-price={product.price}
+  data-name={product.name}
+>
+  <div class="p-3 md:p-4">
+    <ProductVisual accent={product.accent} glow={product.glow} compact imageSrc={product.image} imageAlt={product.imageAlt} />
+  </div>
+  <div class="flex flex-1 flex-col gap-3.5 px-3 pb-3.5 pt-0 md:gap-4 md:px-5 md:pb-5 md:pt-1">
+    <div class="flex flex-col gap-2.5 md:flex-row md:items-start md:justify-between md:gap-4">
+      <div>
+        <p class="text-xs uppercase tracking-[0.18em] text-[var(--brand-ink-soft)]">{product.category}</p>
+        <h3 class="mt-1.5 text-lg font-semibold leading-tight text-[var(--brand-ink)] md:mt-2 md:text-xl">{product.name}</h3>
+        {product.enquireOnly ? (
+          <span class="mt-2 inline-flex rounded-full border border-[#f3d3b0] bg-[#fff5e8] px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[#8a4c00]">
+            Enquire only
+          </span>
+        ) : null}
+      </div>
+      <p class="text-sm font-medium text-[var(--brand-purple)]">{getProductPriceLabel(product)}</p>
+    </div>
+    <ul class="hidden gap-2 text-sm text-[var(--brand-ink)] md:grid">
+      {product.features.slice(0, 2).map((feature) => (
+        <li class="flex items-center gap-2">
+          <span class="h-1.5 w-1.5 rounded-full bg-[var(--brand-pink)]"></span>
+          {feature}
+        </li>
+      ))}
+    </ul>
+    <div class="mt-auto flex items-center justify-end pt-2 md:pt-3">
+      <a class="rounded-[10px] bg-[var(--brand-purple)] px-3 py-2 text-xs font-semibold text-white transition group-hover:scale-[1.03] md:px-4 md:text-sm" href={`/products/${product.slug}`}>
+        {product.enquireOnly ? 'Enquire now' : 'View product'}
+      </a>
+    </div>
+  </div>
+</article>

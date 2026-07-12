@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 120" role="img" aria-labelledby="title desc">
+  <title id="title">Your Store placeholder logo</title>
+  <desc id="desc">Neutral placeholder wordmark for the white-label storefront.</desc>
+  <rect width="320" height="120" rx="24" fill="#fff8f1"/>
+  <rect x="12" y="12" width="296" height="96" rx="18" fill="#f5e6db" stroke="#b84f6a" stroke-width="4"/>
+  <circle cx="60" cy="60" r="24" fill="#b84f6a"/>
+  <path d="M48 62c7-2 12-8 15-17 4 9 9 15 17 17-8 2-13 8-17 17-3-9-8-15-15-17Z" fill="#fff8f1"/>
+  <text x="100" y="54" fill="#2b2432" font-family="Arial, sans-serif" font-size="18" font-weight="700">YOUR STORE</text>
+  <text x="100" y="79" fill="#6f6676" font-family="Arial, sans-serif" font-size="12" letter-spacing="2">WHITE-LABEL STARTER</text>
+</svg>

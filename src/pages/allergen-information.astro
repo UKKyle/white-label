@@ -1,0 +1,114 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { brand } from '../data/site';
+import { buildSeo } from '../lib/seo';
+
+const seo = buildSeo('Allergen Information', 'Allergen information for The Crumb Works orders and enquiries.', '/allergen-information');
+const lastUpdated = '8 July 2026';
+
+const sections = [
+  {
+    title: 'Please contact us before ordering',
+    paragraphs: [
+      'If you have an allergy, intolerance or dietary requirement, please contact The Crumb Works before placing an order or sending final order details.',
+      'Allergen information is available before ordering, and we are happy to talk through suitability before you decide whether to proceed.'
+    ],
+    list: [
+      `Email us at ${brand.email} or use the contact form with your allergy, intolerance or dietary requirement clearly stated.`,
+      'Please do not rely on website photos or product names alone when deciding whether a product is suitable.'
+    ]
+  },
+  {
+    title: 'Kitchen allergen handling',
+    emphasis: true,
+    paragraphs: [
+      'The Crumb Works products are made in a kitchen that handles common allergens including milk, eggs, gluten/wheat, soya, nuts, peanuts and other allergens.',
+      'Due to the nature of the kitchen, The Crumb Works cannot guarantee an allergen-free environment.'
+    ]
+  },
+  {
+    title: 'Suitability, labels and requests',
+    paragraphs: [
+      'Customers should check any label, written note or accompanying information before consuming a product.',
+      'Some allergy-safe or dietary requests may not be possible for us to fulfil. If we cannot confidently support a request, we may be unable to accept the order.'
+    ],
+    list: [
+      'Tell us about allergies, intolerances or dietary requirements as early as possible.',
+      'Check suitability again when you receive your order.',
+      'Do not consume a product if you are unsure whether it is suitable for your needs.'
+    ]
+  }
+];
+---
+
+<Layout title={seo.title} description={seo.description}>
+  <section class="warm-stage px-3 pb-16 pt-28 md:px-4 md:pb-18 md:pt-32">
+    <div class="mx-auto max-w-5xl">
+      <div class="terms-page-shell">
+        <div class="terms-page-shell__header rainbow-bubble-stage isolate" data-rainbow-parallax data-rainbow-depth="0.5" data-rainbow-direction="-1">
+          <h1 class="terms-page-shell__title">Allergen Information</h1>
+          <p class="terms-page-shell__copy">
+            A clear guide to allergen information, dietary requests and what to check before ordering from The Crumb Works.
+          </p>
+          <p class="terms-page-shell__supporting">
+            Please contact us before ordering if you have an allergy, intolerance or dietary requirement.
+          </p>
+        </div>
+      </div>
+
+      <div class="terms-page-shell terms-page-shell--content">
+        <div class="terms-content">
+          <div class="terms-content__intro">
+            <div class="terms-content__meta">
+              <p class="policy-kicker">Last updated</p>
+              <p class="terms-content__updated">{lastUpdated}</p>
+            </div>
+            <div class="terms-content__summary">
+              <h2 class="policy-heading">Before you choose a bake</h2>
+              <p>
+                We want customers to feel informed before ordering. This page explains how allergen information is handled and why you should contact us first if suitability matters for your order.
+              </p>
+            </div>
+            <div class="terms-content__quicklinks">
+              <a href="/contact" class="terms-content__pill terms-content__pill--primary">Contact us</a>
+              <a href="/terms" class="terms-content__pill">View Terms &amp; Conditions</a>
+            </div>
+          </div>
+
+          {sections.map((section, index) => (
+            <div class:list={['terms-content__card terms-content__card--page', section.emphasis && 'terms-content__card--alert']}>
+              <div class="policy-stack">
+                <p class="policy-kicker">Section {index + 1}</p>
+                <h2 class="policy-heading">{section.title}</h2>
+                {section.paragraphs.map((paragraph) => (
+                  <p>{paragraph}</p>
+                ))}
+                {section.list && (
+                  <ul class="policy-list">
+                    {section.list.map((item) => (
+                      <li>{item}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          ))}
+
+          <div class="terms-content__contact">
+            <div class="policy-stack">
+              <p class="policy-kicker">Questions?</p>
+              <h2 class="policy-heading">Ask before ordering</h2>
+              <p>
+                If you need allergen or dietary information before ordering, contact us at <a href={`mailto:${brand.email}`} class="terms-content__text-link">{brand.email}</a> or send an enquiry through the contact form.
+              </p>
+              <div class="terms-content__actions">
+                <a href="/contact" class="terms-content__button">Go to contact page</a>
+                <a href="/" class="terms-content__text-link">Return to homepage</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</Layout>

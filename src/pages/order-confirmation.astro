@@ -1,0 +1,91 @@
+---
+import Layout from '../layouts/Layout.astro';
+import PageHero from '../components/PageHero.astro';
+import { brand } from '../data/site';
+import { getOrderByReference } from '../lib/orderStore';
+import { getAdapterEnv } from '../lib/runtimeEnv';
+import { syncOrderWithSumUp } from '../lib/orderService';
+import { buildSeo } from '../lib/seo';
+
+const seo = buildSeo('Order confirmation', 'Confirmation and next steps for your Crumb Works order.', '/order-confirmation');
+const reference = Astro.url.searchParams.get('reference')?.trim() || '';
+const env = getAdapterEnv(Astro);
+const storedOrder = reference ? await getOrderByReference(env, reference) : null;
+const order = storedOrder ? await syncOrderWithSumUp(env, storedOrder) : null;
+const paymentState = order?.paymentStatus === 'PAID'
+  ? 'Payment received'
+  : order?.paymentStatus === 'FAILED'
+    ? 'Payment failed'
+    : order?.paymentStatus === 'EXPIRED'
+      ? 'Payment expired'
+      : 'Payment pending';
+---
+
+<Layout title={seo.title} description={seo.description}>
+  <PageHero align="center" title="Order confirmation" />
+  <section class="warm-stage site-shell site-section-tight">
+    <div class="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+      <div class="card-shell p-8 md:p-10">
+        <p class="inline-flex rounded-full border border-[#f4c8d9] bg-[#fff7fa] px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--brand-purple-deep)]">{paymentState}</p>
+        <h2 class="mt-4 text-3xl font-semibold text-[var(--brand-ink)]">Thanks for your order.</h2>
+        <p class="mt-4 text-sm leading-7 text-[var(--brand-ink-soft)]">
+          {order
+            ? `We have received your order for ${order.customer.name}. We will review it and confirm collection or delivery arrangements.`
+            : 'If your payment completed successfully, we will match it to your order and send confirmation. We will review the checkout reference before confirming collection or delivery arrangements.'}
+        </p>
+
+        {order ? (
+          <div class="mt-6 grid gap-4 md:grid-cols-2">
+            <div class="rounded-[16px] border border-[#f8d8e4] bg-[#fff7fa] p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand-ink-soft)]">Order reference</p>
+              <p class="mt-2 break-all text-lg font-semibold text-[var(--brand-ink)]">{order.reference}</p>
+            </div>
+            <div class="rounded-[16px] border border-[#f8d8e4] bg-[#fff7fa] p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand-ink-soft)]">Customer</p>
+              <p class="mt-2 text-lg font-semibold text-[var(--brand-ink)]">{order.customer.name}</p>
+              <p class="mt-1 text-sm text-[var(--brand-ink-soft)]">{order.customer.email}</p>
+            </div>
+          </div>
+        ) : reference ? (
+          <div class="mt-6 rounded-[16px] border border-[#f8d8e4] bg-[#fff7fa] p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand-ink-soft)]">Order reference</p>
+            <p class="mt-2 break-all text-lg font-semibold text-[var(--brand-ink)]">{reference}</p>
+          </div>
+        ) : (
+          <div class="mt-6 rounded-[16px] border border-[#f8d8e4] bg-[#fff7fa] p-4">
+            <p class="text-sm leading-7 text-[var(--brand-ink-soft)]">
+              No checkout reference was included in the return link. If you have paid, please keep your receipt handy when contacting us.
+            </p>
+          </div>
+        )}
+
+        <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+          <a class="rounded-[10px] bg-[var(--brand-purple)] px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-[var(--brand-purple-deep)]" href="/products">
+            Browse more bakes
+          </a>
+          <a class="rounded-[10px] border border-[#f4bfd2] px-6 py-3 text-center text-sm font-semibold text-[var(--brand-ink-soft)] transition hover:border-[var(--brand-purple)] hover:text-[var(--brand-purple)]" href={`mailto:${brand.email}`}>
+            Email us
+          </a>
+        </div>
+      </div>
+
+      <aside class="card-shell p-8 md:p-9">
+        <h2 class="text-2xl font-semibold text-[var(--brand-ink)]">What happens next</h2>
+        <ol class="mt-5 space-y-4 text-sm leading-7 text-[var(--brand-ink-soft)]">
+          <li class="rounded-[14px] border border-[#f8d8e4] bg-white/70 p-4">
+            <span class="font-semibold text-[var(--brand-ink)]">1. Payment check</span>
+            <span class="mt-1 block">Payment is processed securely and a receipt is sent when the transaction is complete.</span>
+          </li>
+          <li class="rounded-[14px] border border-[#f8d8e4] bg-white/70 p-4">
+            <span class="font-semibold text-[var(--brand-ink)]">2. Order review</span>
+            <span class="mt-1 block">We review your order details before confirming the bake.</span>
+          </li>
+          <li class="rounded-[14px] border border-[#f8d8e4] bg-white/70 p-4">
+            <span class="font-semibold text-[var(--brand-ink)]">3. Final details</span>
+            <span class="mt-1 block">We will contact you if anything needs clarifying before collection or delivery.</span>
+          </li>
+        </ol>
+      </aside>
+    </div>
+  </section>
+</Layout>

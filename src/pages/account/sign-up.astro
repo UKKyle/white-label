@@ -1,0 +1,83 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PageHero from '../../components/PageHero.astro';
+import { CustomerAccountEmailError, sendVerificationEmail } from '../../lib/customerAccountEmails';
+import { createCustomerAccount, normaliseAccountName, normaliseAccountPhone, validateAccountPassword, validateAccountProfile } from '../../lib/customerAccountAuth';
+import { getAdapterEnv } from '../../lib/runtimeEnv';
+import { routes } from '../../lib/routes';
+import { checkRateLimit, requestKey } from '../../security/rate-limit';
+import { isEmail, sanitizeEmail } from '../../security/sanitize';
+
+export const prerender = false;
+
+let message = '';
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  if (!checkRateLimit(requestKey(Astro.request), 4, 60_000)) {
+    error = 'Please wait a moment before trying again.';
+  } else {
+    const form = await Astro.request.formData();
+    const firstName = normaliseAccountName(form.get('firstName'));
+    const lastName = normaliseAccountName(form.get('lastName'));
+    const phone = normaliseAccountPhone(form.get('phone'));
+    const email = sanitizeEmail(form.get('email'));
+    const password = String(form.get('password') ?? '');
+    const confirmPassword = String(form.get('confirmPassword') ?? '');
+    const marketingOptIn = form.get('marketingOptIn') === 'on';
+    const profileError = validateAccountProfile({ firstName, lastName, phone });
+    const passwordError = validateAccountPassword(password);
+
+    if (profileError || !isEmail(email) || passwordError || password !== confirmPassword) {
+      error = profileError || (password !== confirmPassword ? 'Passwords do not match.' : passwordError || 'Enter a valid email address.');
+    } else {
+      try {
+        const env = getAdapterEnv(Astro);
+        const result = await createCustomerAccount(env, { firstName, lastName, phone, email, password, marketingOptIn });
+        if (result.account?.emailVerified) {
+          message = 'If that account exists, please sign in or reset your password.';
+        } else if (result.account && result.verificationCode) {
+          await sendVerificationEmail(env, Astro.url, result.account.email, result.verificationCode);
+          return Astro.redirect(`${routes.accountVerify}?email=${encodeURIComponent(result.account.email)}`);
+        } else {
+          error = 'We could not start verification. Please check your details and try again.';
+        }
+      } catch (accountError) {
+        console.error('customer_account_signup_failed', {
+          message: accountError instanceof Error ? accountError.message : 'Unknown account signup error',
+          status: accountError instanceof CustomerAccountEmailError ? accountError.status : undefined,
+        });
+        error = accountError instanceof CustomerAccountEmailError
+          ? 'We could not send your verification code right now. Please try again shortly.'
+          : 'We could not create your account right now. Please try again shortly.';
+      }
+    }
+  }
+}
+---
+
+<Layout title="Create Account | The Crumb Works" description="Create a The Crumb Works customer account.">
+  <PageHero align="center" title="Create Account" />
+  <section class="warm-stage px-3 pb-18 pt-4 md:px-4">
+    <div class="mx-auto max-w-xl">
+      <form method="post" class="premium-form-card space-y-4">
+        {message && <p class="rounded-[12px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</p>}
+        {error && <p class="rounded-[12px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="premium-field"><span>First name</span><input class="input-shell" name="firstName" autocomplete="given-name" required /></label>
+          <label class="premium-field"><span>Last name</span><input class="input-shell" name="lastName" autocomplete="family-name" required /></label>
+        </div>
+        <label class="premium-field"><span>Email</span><input class="input-shell" name="email" type="email" autocomplete="email" required /></label>
+        <label class="premium-field"><span>Phone</span><input class="input-shell" name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="07..." required /></label>
+        <label class="premium-field"><span>Password</span><input class="input-shell" name="password" type="password" autocomplete="new-password" required /></label>
+        <label class="premium-field"><span>Confirm password</span><input class="input-shell" name="confirmPassword" type="password" autocomplete="new-password" required /></label>
+        <label class="flex gap-3 rounded-[14px] border border-[#f4bfd2] bg-white/80 px-4 py-3 text-sm leading-6 text-[var(--brand-ink-soft)]">
+          <input class="mt-1 h-4 w-4 shrink-0 accent-[var(--brand-purple)]" type="checkbox" name="marketingOptIn" />
+          <span>Send me news, offers and seasonal bake updates from The Crumb Works.</span>
+        </label>
+        <button class="w-full rounded-[10px] bg-[var(--brand-ink)] px-6 py-3 text-sm font-semibold text-white" type="submit">Create account</button>
+        <p class="text-center text-sm text-[var(--brand-ink-soft)]">Already have an account? <a class="font-semibold text-[var(--brand-purple)]" href={routes.accountSignIn}>Sign in</a></p>
+      </form>
+    </div>
+  </section>
+</Layout>

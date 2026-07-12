@@ -1,0 +1,347 @@
+---
+import AdminShell from '../../components/admin/AdminShell.astro';
+import { createAdminCsrfToken, getAdminSession, isTrustedAdminOrigin, validateAdminCsrfToken } from '../../lib/adminAuth';
+import { getPosPinStatus, setPosPin } from '../../lib/posAccess';
+import { createPosProduct, deletePosProduct, listPosProducts, updatePosProduct, type PosProduct } from '../../lib/posProducts';
+import { getAdapterEnv } from '../../lib/runtimeEnv';
+import '../../styles/global.css';
+
+export const prerender = false;
+
+let session = null;
+
+try {
+  session = await getAdminSession(Astro);
+} catch {
+  session = null;
+}
+
+if (!session) {
+  return Astro.redirect('/admin/login');
+}
+
+const env = getAdapterEnv(Astro);
+const actionStatus = Astro.url.searchParams.get('status')?.trim() ?? '';
+
+function formProductInput(formData: FormData) {
+  return {
+    name: String(formData.get('name') ?? ''),
+    price: String(formData.get('price') ?? ''),
+    category: String(formData.get('category') ?? ''),
+    status: String(formData.get('status') ?? ''),
+    sortOrder: String(formData.get('sortOrder') ?? ''),
+  };
+}
+
+if (Astro.request.method === 'POST') {
+  if (!isTrustedAdminOrigin(Astro.request)) {
+    return Astro.redirect('/admin/pos?status=csrf');
+  }
+
+  const formData = await Astro.request.formData();
+  const csrfToken = String(formData.get('csrf') ?? '');
+  const action = String(formData.get('action') ?? '').trim();
+  const validCsrf = await validateAdminCsrfToken(Astro, session, csrfToken);
+
+  if (!validCsrf) {
+    return Astro.redirect('/admin/pos?status=csrf');
+  }
+
+  try {
+    if (action === 'pin') {
+      const pin = String(formData.get('pin') ?? '').trim();
+      const confirmPin = String(formData.get('confirmPin') ?? '').trim();
+
+      if (!/^\d{6}$/.test(pin) || pin !== confirmPin) {
+        return Astro.redirect('/admin/pos?status=invalid-pin');
+      }
+
+      await setPosPin(env, pin);
+      return Astro.redirect('/admin/pos?status=pin-saved');
+    }
+
+    if (action === 'create-product') {
+      await createPosProduct(env, formProductInput(formData));
+      return Astro.redirect('/admin/pos?status=product-created');
+    }
+
+    if (action === 'update-product') {
+      const id = String(formData.get('id') ?? '');
+      await updatePosProduct(env, id, formProductInput(formData));
+      return Astro.redirect('/admin/pos?status=product-updated');
+    }
+
+    if (action === 'delete-product') {
+      const id = String(formData.get('id') ?? '');
+      await deletePosProduct(env, id);
+      return Astro.redirect('/admin/pos?status=product-deleted');
+    }
+  } catch {
+    return Astro.redirect(action === 'pin' ? '/admin/pos?status=storage' : '/admin/pos?status=product-error');
+  }
+
+  return Astro.redirect('/admin/pos?status=invalid-action');
+}
+
+const csrfToken = await createAdminCsrfToken(Astro, session);
+let configured = false;
+let updatedAt = '';
+let loadError = '';
+let products: PosProduct[] = [];
+
+try {
+  const status = await getPosPinStatus(env);
+  configured = status.configured;
+  updatedAt = status.updatedAt ?? '';
+} catch {
+  loadError = 'Point of Sale security settings could not be loaded. Check the Cloudflare KV binding before changing the PIN.';
+}
+
+try {
+  products = await listPosProducts(env, { seedIfEmpty: true });
+} catch {
+  loadError = loadError || 'POS products could not be loaded. Check the Cloudflare KV binding before editing products.';
+}
+
+const activeProducts = products.filter((product) => product.status === 'active');
+const draftProducts = products.filter((product) => product.status === 'draft');
+const updatedLabel = updatedAt
+  ? new Intl.DateTimeFormat('en-GB', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(new Date(updatedAt))
+  : '';
+
+function pounds(pricePence: number) {
+  return (pricePence / 100).toFixed(2);
+}
+
+function statusMessage(status: string) {
+  const messages: Record<string, string> = {
+    'pin-saved': 'POS PIN updated. Devices must unlock with the new PIN before syncing orders.',
+    'product-created': 'POS product created.',
+    'product-updated': 'POS product updated.',
+    'product-deleted': 'POS product removed from the active catalogue.',
+    'invalid-pin': 'Enter the same 6 digit PIN in both fields.',
+    csrf: 'Security check failed. Please try again.',
+    storage: 'POS PIN could not be saved. Check the Cloudflare KV binding and try again.',
+    'product-error': 'POS product could not be saved. Check the fields and try again.',
+    'invalid-action': 'The POS admin action was not recognised.',
+  };
+
+  return messages[status] ?? '';
+}
+
+const successStatus = ['pin-saved', 'product-created', 'product-updated', 'product-deleted'].includes(actionStatus);
+const message = statusMessage(actionStatus);
+---
+
+<html lang="en">
+  <head>
+    <title>Point of Sale - Crumb Works Admin</title>
+    <meta name="robots" content="noindex, nofollow" />
+  </head>
+  <body>
+    <AdminShell
+      activeNav="pos"
+      pageTitle="Point of Sale"
+      pageSubtitle="Manage the in-store POS product catalogue"
+      sessionEmail={session.email}
+    >
+      <div class="space-y-5">
+        {message && (
+          <div class:list={[
+            'rounded-[18px] border px-4 py-3 text-sm font-semibold',
+            successStatus ? 'border-[#b8e6cc] bg-[#ecfff4] text-[#0f6b3f]' : 'border-[#f2b8b5] bg-[#fff0f0] text-[#a12018]',
+          ]}>
+            {message}
+          </div>
+        )}
+
+        {loadError && (
+          <div class="rounded-[18px] border border-[#f2b8b5] bg-[#fff0f0] px-4 py-3 text-sm font-semibold text-[#a12018]">
+            {loadError}
+          </div>
+        )}
+
+        <section class="rounded-[24px] border border-black/6 bg-white shadow-sm">
+          <div class="flex flex-col gap-3 border-b border-black/6 p-5 md:flex-row md:items-center md:justify-between md:p-6">
+            <div>
+              <p class="text-sm font-semibold text-[#6d7175]">POS products</p>
+              <h2 class="mt-1 text-2xl font-semibold tracking-tight text-[#202223]">In-store catalogue</h2>
+              <p class="mt-2 max-w-2xl text-sm leading-6 text-[#6d7175]">
+                These products are separate from the public website catalogue and are loaded by every unlocked POS device.
+              </p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <a href="#add-pos-product" class="rounded-[12px] bg-[#1d1d1d] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-black">
+                Add product
+              </a>
+            </div>
+          </div>
+
+          <div class="grid border-b border-black/6 bg-[#fbfbfc] md:grid-cols-3">
+            <div class="border-b border-black/6 px-5 py-4 md:border-b-0 md:border-r">
+              <p class="text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Active products</p>
+              <p class="mt-2 text-xl font-semibold text-[#202223]">{activeProducts.length}</p>
+            </div>
+            <div class="border-b border-black/6 px-5 py-4 md:border-b-0 md:border-r">
+              <p class="text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Draft products</p>
+              <p class="mt-2 text-xl font-semibold text-[#202223]">{draftProducts.length}</p>
+            </div>
+            <div class="px-5 py-4">
+              <p class="text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">POS visibility</p>
+              <p class="mt-2 text-xl font-semibold text-[#202223]">{configured ? 'PIN protected' : 'Needs PIN'}</p>
+            </div>
+          </div>
+
+          <form id="add-pos-product" method="POST" class="grid gap-3 border-b border-black/6 bg-[#f8fafc] p-5 md:grid-cols-[minmax(0,1.4fr)_160px_minmax(0,1fr)_120px_130px_auto] md:items-end md:p-6">
+            <input type="hidden" name="csrf" value={csrfToken} />
+            <input type="hidden" name="action" value="create-product" />
+            <label class="block">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Product</span>
+              <input name="name" class="mt-2 h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" required />
+            </label>
+            <label class="block">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Price</span>
+              <input name="price" type="number" min="0.01" step="0.01" class="mt-2 h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" required />
+            </label>
+            <label class="block">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Category</span>
+              <input name="category" class="mt-2 h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" />
+            </label>
+            <label class="block">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Sort</span>
+              <input name="sortOrder" type="number" step="1" class="mt-2 h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" />
+            </label>
+            <label class="block">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-[#6d7175]">Visibility</span>
+              <select name="status" class="mt-2 h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]">
+                <option value="active">Active</option>
+                <option value="draft">Draft</option>
+              </select>
+            </label>
+            <button class="h-11 rounded-[14px] bg-[#008060] px-5 text-sm font-semibold text-white transition hover:bg-[#006e52]">
+              Add
+            </button>
+          </form>
+
+          <div class="overflow-x-auto">
+            <div class="grid min-w-[980px] grid-cols-[minmax(220px,1.4fr)_160px_minmax(180px,1fr)_120px_130px_170px] border-b border-black/6 bg-[#f7f7f7] px-5 py-3 text-xs font-semibold text-[#6d7175]">
+              <div>Product</div>
+              <div>Price</div>
+              <div>Category</div>
+              <div>Sort</div>
+              <div>Status</div>
+              <div class="text-right">Actions</div>
+            </div>
+          <div class="min-w-[980px] divide-y divide-black/6">
+            {products.length === 0 ? (
+              <div class="p-6 text-sm font-semibold text-[#6d7175]">No POS products yet.</div>
+            ) : (
+              products.map((product) => (
+                <form method="POST" class="grid grid-cols-[minmax(220px,1.4fr)_160px_minmax(180px,1fr)_120px_130px_170px] gap-3 px-5 py-4">
+                  <input type="hidden" name="csrf" value={csrfToken} />
+                  <input type="hidden" name="id" value={product.id} />
+                  <label class="block">
+                    <span class="sr-only">Product</span>
+                    <input name="name" value={product.name} class="mt-2 h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" required />
+                  </label>
+                  <label class="block">
+                    <span class="sr-only">Price</span>
+                    <input name="price" type="number" min="0.01" step="0.01" value={pounds(product.pricePence)} class="mt-2 h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" required />
+                  </label>
+                  <label class="block">
+                    <span class="sr-only">Category</span>
+                    <input name="category" value={product.category} class="mt-2 h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" />
+                  </label>
+                  <label class="block">
+                    <span class="sr-only">Sort</span>
+                    <input name="sortOrder" type="number" step="1" value={String(product.sortOrder)} class="mt-2 h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]" />
+                  </label>
+                  <label class="block">
+                    <span class="sr-only">Visibility</span>
+                    <select name="status" class="mt-2 h-11 w-full rounded-[14px] border border-black/10 bg-white px-3 text-sm text-[#202223] outline-none focus:border-[#1d1d1d]">
+                      <option value="active" selected={product.status === 'active'}>Active</option>
+                      <option value="draft" selected={product.status === 'draft'}>Draft</option>
+                    </select>
+                  </label>
+                  <div class="flex justify-end gap-2">
+                    <button name="action" value="update-product" class="h-11 rounded-[14px] bg-[#1d1d1d] px-4 text-sm font-semibold text-white transition hover:bg-black">
+                      Save
+                    </button>
+                    <button name="action" value="delete-product" class="h-11 rounded-[14px] border border-[#f2b8b5] bg-[#fff0f0] px-4 text-sm font-semibold text-[#a12018] transition hover:bg-[#ffe1e1]">
+                      Delete
+                    </button>
+                  </div>
+                </form>
+              ))
+            )}
+          </div>
+          </div>
+        </section>
+
+        <details class="group rounded-[24px] border border-black/6 bg-white shadow-sm">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 md:px-6">
+            <span>
+              <span class="block text-sm font-semibold text-[#6d7175]">POS security</span>
+              <span class="mt-1 block text-base font-semibold text-[#202223]">
+                {configured ? 'PIN is configured' : 'Create a 6 digit POS PIN'}
+              </span>
+            </span>
+            <span class="flex items-center gap-3">
+              <span class:list={[
+                'hidden rounded-full px-3 py-1.5 text-sm font-semibold sm:inline-flex',
+                configured ? 'bg-[#dff6ea] text-[#0f6b3f]' : 'bg-[#fff0d1] text-[#8a5a00]',
+              ]}>
+                {updatedLabel || (configured ? 'PIN set' : 'Setup needed')}
+              </span>
+              <span class="rounded-[12px] bg-[#1d1d1d] px-4 py-2.5 text-sm font-semibold text-white transition group-open:bg-[#4c4f52]">
+                Reset PIN
+              </span>
+            </span>
+          </summary>
+
+          <form method="POST" class="grid gap-4 border-t border-black/6 bg-[#fbfbfc] px-5 py-5 md:grid-cols-[1fr_1fr_auto] md:items-end md:px-6">
+            <input type="hidden" name="csrf" value={csrfToken} />
+            <input type="hidden" name="action" value="pin" />
+
+            <label class="block">
+              <span class="text-sm font-semibold text-[#202223]">New PIN</span>
+              <input
+                name="pin"
+                type="password"
+                inputmode="numeric"
+                autocomplete="new-password"
+                pattern="[0-9]{6}"
+                maxlength="6"
+                minlength="6"
+                class="mt-2 h-12 w-full rounded-[16px] border border-black/10 bg-white px-4 text-lg tracking-[0.3em] text-[#202223] outline-none focus:border-[#1d1d1d]"
+                required
+              />
+            </label>
+
+            <label class="block">
+              <span class="text-sm font-semibold text-[#202223]">Confirm PIN</span>
+              <input
+                name="confirmPin"
+                type="password"
+                inputmode="numeric"
+                autocomplete="new-password"
+                pattern="[0-9]{6}"
+                maxlength="6"
+                minlength="6"
+                class="mt-2 h-12 w-full rounded-[16px] border border-black/10 bg-white px-4 text-lg tracking-[0.3em] text-[#202223] outline-none focus:border-[#1d1d1d]"
+                required
+              />
+            </label>
+
+            <button class="h-12 rounded-[16px] bg-[#008060] px-5 text-sm font-semibold text-white transition hover:bg-[#006e52]">
+              Save PIN
+            </button>
+          </form>
+        </details>
+      </div>
+    </AdminShell>
+  </body>
+</html>

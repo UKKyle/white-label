@@ -1,0 +1,95 @@
+---
+import { navItems } from '../data/site';
+import { businessConfig } from '../config/business';
+
+const { pathname } = Astro.url;
+---
+
+<header class="fixed inset-x-0 top-0 z-50 px-3 pt-3 md:px-4 md:pt-4">
+  <div class="relative mx-auto flex max-w-7xl items-center justify-center gap-4 rounded-[20px] border border-[#f3c4d6] bg-white px-5 py-2.5 shadow-[0_8px_24px_rgba(27,29,39,0.12)] md:py-3 lg:justify-between lg:gap-5">
+    <a href="/" aria-label={`${businessConfig.name} home`} class="inline-flex shrink-0 items-center text-[var(--brand-ink)]">
+      <img
+        src={businessConfig.branding.logoPath}
+        alt={businessConfig.name}
+        loading="eager"
+        decoding="async"
+        fetchpriority="high"
+        width="1080"
+        height="1080"
+        class="block h-[clamp(52px,7vw,78px)] w-auto max-w-[min(220px,48vw)] object-contain"
+      />
+    </a>
+
+    <nav class="hidden items-center justify-center gap-2 text-sm font-semibold text-[var(--brand-ink-soft)] lg:absolute lg:left-1/2 lg:flex lg:-translate-x-1/2">
+      {navItems.map((item) => (
+        <a href={item.href} class:list={[
+          'rounded-full px-3.5 py-2 transition hover:bg-[#fff2f7] hover:text-[var(--brand-purple)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-purple)]/30',
+          pathname === item.href && 'bg-[#fff2f7] text-[var(--brand-purple)]'
+        ]}>
+          {item.label}
+        </a>
+      ))}
+    </nav>
+
+    <div class="hidden items-center gap-2 lg:flex">
+      <a href="/loyalty" class="rounded-full border border-[#f4c8d9] bg-[#fff8fb] px-4 py-2 text-sm font-semibold text-[var(--brand-purple)] transition hover:border-[var(--brand-purple)] hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-purple)]/30">
+        Loyalty Points
+      </a>
+      <a href="/account" class="rounded-full border border-[#f4c8d9] px-4 py-2 text-sm font-semibold text-[var(--brand-ink-soft)] transition hover:border-[var(--brand-purple)] hover:bg-[#fff2f7] hover:text-[var(--brand-purple)]">
+        Account
+      </a>
+      <a href="/cart" class="rounded-full border border-[#f4c8d9] bg-[#fff2f7] px-4 py-2 text-sm font-semibold text-[var(--brand-purple)] transition hover:border-[var(--brand-purple)] hover:bg-white">
+        Cart
+      </a>
+      <a href="/products" class="rounded-full bg-[var(--brand-purple)] px-5 py-2 text-sm font-bold text-white shadow-[0_10px_24px_rgba(255,76,199,0.28)] transition hover:scale-[1.02] hover:brightness-105">
+        Shop now
+      </a>
+    </div>
+
+    <button
+      id="menu-toggle"
+      class="absolute right-5 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-[#f4c8d9] bg-[#fff2f7] text-[var(--brand-purple)] lg:hidden"
+      aria-expanded="false"
+      aria-controls="mobile-menu"
+      aria-label="Toggle navigation"
+    >
+      <span class="sr-only">Toggle navigation</span>
+      <span class="space-y-1.5">
+        <span class="block h-0.5 w-5 bg-current"></span>
+        <span class="block h-0.5 w-5 bg-current"></span>
+      </span>
+    </button>
+  </div>
+
+  <div id="mobile-menu" class="mx-auto mt-3 hidden max-w-7xl rounded-[24px] border border-[#f4c8d9] bg-white p-5 shadow-[0_12px_36px_rgba(27,29,39,0.12)] lg:hidden">
+    <nav class="grid gap-3">
+      {navItems.map((item) => (
+        <a href={item.href} class:list={['rounded-2xl px-4 py-3 text-[var(--brand-ink-soft)] transition hover:bg-[#fff2f7] hover:text-[var(--brand-purple)]', pathname === item.href && 'bg-[#fff2f7] text-[var(--brand-purple)]']}>
+          {item.label}
+        </a>
+      ))}
+      <a href="/cart" class="rounded-2xl px-4 py-3 text-[var(--brand-ink-soft)] transition hover:bg-[#fff2f7] hover:text-[var(--brand-purple)]">
+        Cart
+      </a>
+      <a href="/account" class="rounded-2xl px-4 py-3 text-[var(--brand-ink-soft)] transition hover:bg-[#fff2f7] hover:text-[var(--brand-purple)]">
+        Crumb Club
+      </a>
+      <a href="/loyalty" class="rounded-2xl px-4 py-3 text-[var(--brand-purple)] transition hover:bg-[#fff2f7]">
+        Loyalty Points
+      </a>
+      <a href="/products" class="mt-2 rounded-2xl bg-[var(--brand-purple)] px-4 py-3 text-center font-semibold text-white">
+        Browse products
+      </a>
+    </nav>
+  </div>
+</header>
+
+<script is:inline nonce={Astro.locals.cspNonce}>
+  const button = document.getElementById('menu-toggle');
+  const menu = document.getElementById('mobile-menu');
+  button?.addEventListener('click', () => {
+    const expanded = button.getAttribute('aria-expanded') === 'true';
+    button.setAttribute('aria-expanded', String(!expanded));
+    menu?.classList.toggle('hidden');
+  });
+</script>

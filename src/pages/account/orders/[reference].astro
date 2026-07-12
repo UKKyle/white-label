@@ -1,0 +1,68 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import PageHero from '../../../components/PageHero.astro';
+import { accountOrderStatus, accountOrderTotal, formatAccountDate } from '../../../lib/accountPage';
+import { getCustomerSession, getOrderForAccount } from '../../../lib/customerAccountAuth';
+import { listLoyaltyLedger } from '../../../lib/loyalty';
+import { getAdapterEnv } from '../../../lib/runtimeEnv';
+import { routes } from '../../../lib/routes';
+import { sanitizeText } from '../../../security/sanitize';
+
+export const prerender = false;
+
+const session = await getCustomerSession(Astro);
+if (!session) return Astro.redirect(routes.accountSignIn);
+if (!session.account.emailVerified) return Astro.redirect(routes.account);
+
+const reference = sanitizeText(Astro.params.reference ?? '').slice(0, 120);
+const env = getAdapterEnv(Astro);
+const order = await getOrderForAccount(env, session.account, reference);
+if (!order) return new Response('Not found', { status: 404 });
+const loyaltyEntries = await listLoyaltyLedger(env, session.account.id, 100);
+const earnedEntry = loyaltyEntries.find((entry) => entry.type === 'earn' && entry.orderReference === order.reference);
+const redeemedEntry = loyaltyEntries.find((entry) => entry.type === 'redeem' && entry.orderReference === order.reference);
+---
+
+<Layout title={`Order #${order.orderNumber} | The Crumb Works`} description="View your The Crumb Works order details.">
+  <PageHero align="center" title={`Order #${order.orderNumber}`} />
+  <section class="warm-stage px-3 pb-18 pt-4 md:px-4">
+    <div class="mx-auto max-w-4xl space-y-5">
+      <section class="premium-form-card">
+        <dl class="grid gap-4 text-sm md:grid-cols-2">
+          <div><dt class="font-semibold text-[var(--brand-ink)]">Status</dt><dd class="mt-1 text-[var(--brand-ink-soft)]">{accountOrderStatus(order)}</dd></div>
+          <div><dt class="font-semibold text-[var(--brand-ink)]">Order date</dt><dd class="mt-1 text-[var(--brand-ink-soft)]">{formatAccountDate(order.createdAt)}</dd></div>
+          <div><dt class="font-semibold text-[var(--brand-ink)]">Requested date</dt><dd class="mt-1 text-[var(--brand-ink-soft)]">{order.customer.requestedDate || 'To be confirmed'}</dd></div>
+          <div><dt class="font-semibold text-[var(--brand-ink)]">Fulfilment</dt><dd class="mt-1 text-[var(--brand-ink-soft)]">{order.customer.fulfilmentMethod === 'delivery' ? 'Delivery' : 'Collection'}</dd></div>
+          {order.customer.deliveryAddress && <div class="md:col-span-2"><dt class="font-semibold text-[var(--brand-ink)]">Delivery address</dt><dd class="mt-1 text-[var(--brand-ink-soft)]">{order.customer.deliveryAddress}</dd></div>}
+          {order.customer.notes && <div class="md:col-span-2"><dt class="font-semibold text-[var(--brand-ink)]">Order notes</dt><dd class="mt-1 text-[var(--brand-ink-soft)]">{order.customer.notes}</dd></div>}
+        </dl>
+      </section>
+
+      <section class="premium-form-card">
+        <h2 class="text-lg font-semibold text-[var(--brand-ink)]">Items</h2>
+        <div class="mt-4 divide-y divide-[#f8d8e4]">
+          {order.items.map((item) => (
+            <div class="grid gap-1 py-4 text-sm md:grid-cols-[1fr_auto]">
+              <div>
+                <p class="font-semibold text-[var(--brand-ink)]">{item.name} x{item.quantity}</p>
+                <p class="text-[var(--brand-ink-soft)]">{[item.flavour, item.servingSize].filter(Boolean).join(', ')}</p>
+              </div>
+              <p class="font-semibold text-[var(--brand-ink)]">{accountOrderTotal({ ...order, totalPence: item.lineTotalPence })}</p>
+            </div>
+          ))}
+        </div>
+        <div class="mt-4 flex justify-between border-t border-[#f8d8e4] pt-4 text-sm font-semibold text-[var(--brand-ink)]">
+          <span>Total</span>
+          <span>{accountOrderTotal(order)}</span>
+        </div>
+        {(earnedEntry || redeemedEntry || order.loyalty?.redeemedPence) && (
+          <div class="mt-4 grid gap-2 border-t border-[#f8d8e4] pt-4 text-sm text-[var(--brand-ink-soft)]">
+            {redeemedEntry && <p>{Math.abs(redeemedEntry.points)} Loyalty Points redeemed on this order.</p>}
+            {!redeemedEntry && order.loyalty?.redeemedPoints && <p>{order.loyalty.redeemedPoints} Loyalty Points requested for this order.</p>}
+            {earnedEntry && <p>{earnedEntry.points} Loyalty Points earned from this order.</p>}
+          </div>
+        )}
+      </section>
+    </div>
+  </section>
+</Layout>

@@ -1,0 +1,180 @@
+---
+import TermsContent from './TermsContent.astro';
+import { businessConfig } from '../config/business';
+
+const storageKey = 'white_label_terms_accepted';
+const nonce = Astro.locals.cspNonce;
+---
+
+<div
+  id="terms-acceptance-modal"
+  class="terms-modal terms-modal--hidden"
+  data-terms-modal
+  data-storage-key={storageKey}
+  aria-hidden="true"
+>
+  <div class="terms-modal__overlay"></div>
+  <div
+    class="terms-modal__dialog card-shell"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="terms-modal-title"
+    aria-describedby="terms-modal-copy"
+    tabindex="-1"
+  >
+    <img
+      src={businessConfig.branding.logoPath}
+      alt={businessConfig.name}
+      class="terms-modal__logo"
+      loading="eager"
+      decoding="async"
+      width="1080"
+      height="1080"
+    />
+    <h2 id="terms-modal-title" class="terms-modal__title">Just before you continue</h2>
+    <p id="terms-modal-copy" class="terms-modal__copy">
+      Please confirm that you agree to our{' '}
+      <button type="button" class="terms-modal__link" data-open-terms-panel>Terms &amp; Conditions</button>{' '}
+      before using the {businessConfig.name} website.
+    </p>
+    <label class="terms-modal__checkbox-row" for="terms-acceptance-checkbox">
+      <input id="terms-acceptance-checkbox" type="checkbox" class="terms-modal__checkbox" />
+      <span class="terms-modal__checkbox-copy">
+        I have read and agree to the{' '}
+        <button type="button" class="terms-modal__link" data-open-terms-panel>Terms &amp; Conditions</button>.
+      </span>
+    </label>
+    <button
+      id="terms-acceptance-button"
+      type="button"
+      class="terms-modal__button"
+      disabled
+    >
+      Continue
+    </button>
+  </div>
+
+  <div
+    id="terms-modal-panel"
+    class="terms-modal__panel terms-modal__panel--hidden"
+    aria-hidden="true"
+  >
+    <div class="terms-modal__panel-shell card-shell" tabindex="-1">
+      <div class="terms-modal__panel-header">
+        <div>
+          <p class="terms-modal__panel-kicker">Terms &amp; Conditions</p>
+          <h3 class="terms-modal__panel-title">Before you continue</h3>
+        </div>
+        <button
+          id="terms-modal-panel-close"
+          type="button"
+          class="terms-modal__panel-close"
+          aria-label="Close terms and conditions"
+        >
+          Close
+        </button>
+      </div>
+      <div class="terms-modal__panel-body">
+        <TermsContent variant="modal" />
+      </div>
+    </div>
+  </div>
+</div>
+
+<script is:inline nonce={nonce}>
+  const modal = document.querySelector('[data-terms-modal]');
+  const button = document.getElementById('terms-acceptance-button');
+  const checkbox = document.getElementById('terms-acceptance-checkbox');
+  const dialog = modal?.querySelector('[role="dialog"]');
+  const termsPanel = document.getElementById('terms-modal-panel');
+  const termsPanelShell = termsPanel?.querySelector('.terms-modal__panel-shell');
+  const termsPanelClose = document.getElementById('terms-modal-panel-close');
+  const termsPanelLinks = modal?.querySelectorAll('[data-open-terms-panel]');
+  const storageKey = modal?.getAttribute('data-storage-key') ?? 'white_label_terms_accepted';
+
+  const hideTermsPanel = () => {
+    termsPanel?.classList.add('terms-modal__panel--hidden');
+    termsPanel?.setAttribute('aria-hidden', 'true');
+    if (checkbox instanceof HTMLElement) {
+      checkbox.focus();
+    }
+  };
+
+  const showTermsPanel = () => {
+    termsPanel?.classList.remove('terms-modal__panel--hidden');
+    termsPanel?.setAttribute('aria-hidden', 'false');
+    if (termsPanelShell instanceof HTMLElement) {
+      window.requestAnimationFrame(() => termsPanelShell.focus());
+    }
+  };
+
+  const hideModal = () => {
+    hideTermsPanel();
+    modal?.classList.add('terms-modal--hidden');
+    modal?.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('terms-modal-open');
+    if (checkbox instanceof HTMLInputElement) {
+      checkbox.checked = false;
+    }
+    if (button instanceof HTMLButtonElement) {
+      button.disabled = true;
+    }
+  };
+
+  const showModal = () => {
+    modal?.classList.remove('terms-modal--hidden');
+    modal?.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('terms-modal-open');
+    window.requestAnimationFrame(() => {
+      if (checkbox instanceof HTMLElement) {
+        checkbox.focus();
+      } else if (dialog instanceof HTMLElement) {
+        dialog.focus();
+      }
+    });
+  };
+
+  if (typeof window !== 'undefined') {
+    let accepted = false;
+
+    try {
+      accepted = window.localStorage.getItem(storageKey) === 'true';
+    } catch {
+      accepted = false;
+    }
+
+    if (!accepted) {
+      showModal();
+    }
+
+    checkbox?.addEventListener('change', () => {
+      if (checkbox instanceof HTMLInputElement && button instanceof HTMLButtonElement) {
+        button.disabled = !checkbox.checked;
+      }
+    });
+
+    termsPanelLinks?.forEach((link) => {
+      link.addEventListener('click', () => {
+        showTermsPanel();
+      });
+    });
+
+    termsPanelClose?.addEventListener('click', () => {
+      hideTermsPanel();
+    });
+
+    button?.addEventListener('click', () => {
+      if (!(checkbox instanceof HTMLInputElement) || !checkbox.checked) {
+        return;
+      }
+
+      try {
+        window.localStorage.setItem(storageKey, 'true');
+      } catch {
+        // Ignore storage failures and still let the visitor continue.
+      }
+
+      hideModal();
+    });
+  }
+</script>

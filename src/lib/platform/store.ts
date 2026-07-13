@@ -26,6 +26,7 @@ async function write<T>(name: string, value: T, context?: RuntimeContext, ttl?: 
   const body = JSON.stringify(value); const kv = await binding(context);
   if (kv) await kv.put(name, body, ttl ? { expirationTtl: ttl } : undefined); else memory.set(name, body);
 }
+async function remove(name: string, context?: RuntimeContext) { const kv = await binding(context); if (kv) await kv.delete(name); else memory.delete(name); }
 
 export async function getUserById(userId: string, context?: RuntimeContext) { return read<PlatformUser>(key('user', userId), context); }
 export async function getUserByEmail(email: string, context?: RuntimeContext) {
@@ -66,8 +67,19 @@ export async function registerMerchant(input: { firstName: string; lastName: str
   const membership: StoreMembership = { id: id(), storeId, userId, role: 'store_owner', status: 'active', createdAt, updatedAt: createdAt };
   const settings: StoreSettings = { storeId, currency: 'GBP', timezone: 'Europe/London', businessAddress: input.address.trim(), orderSettings: {}, taxSettings: {}, fulfilmentSettings: {}, brandingSettings: {}, domainSettings: {}, checkoutSettings: {}, notificationSettings: {} };
   const stores = await read<string[]>(key('stores'), context) ?? [];
-  await Promise.all([write(key('user', userId), user, context), write(key('user-email', email), userId, context), write(key('store', storeId), store, context), write(key('store-slug', slug), storeId, context), write(key('membership', userId, storeId), membership, context), write(key('user-memberships', userId), [storeId], context), write(key('settings', storeId), settings, context), write(key('stores'), [...stores, storeId], context)]);
-  await appendAudit({ actorUserId: userId, actorRole: 'store_owner', storeId, action: 'store.created', targetType: 'store', targetId: storeId, metadata: { slug } }, context);
+  const createdKeys = [key('user', userId), key('user-email', email), key('store', storeId), key('store-slug', slug), key('membership', userId, storeId), key('user-memberships', userId), key('settings', storeId)];
+  try {
+    // KV has no transaction support. Sequential writes plus compensating deletes
+    // ensure a failed registration does not leave a usable partial tenant.
+    await write(createdKeys[0], user, context); await write(createdKeys[1], userId, context);
+    await write(createdKeys[2], store, context); await write(createdKeys[3], storeId, context);
+    await write(createdKeys[4], membership, context); await write(createdKeys[5], [storeId], context);
+    await write(createdKeys[6], settings, context); await write(key('stores'), [...stores, storeId], context);
+    await appendAudit({ actorUserId: userId, actorRole: 'store_owner', storeId, action: 'store.created', targetType: 'store', targetId: storeId, metadata: { slug } }, context);
+  } catch (error) {
+    await Promise.allSettled(createdKeys.map((createdKey) => remove(createdKey, context)));
+    throw new Error('STORE_PROVISIONING_FAILED', { cause: error });
+  }
   return { user, store, membership };
 }
 

@@ -12,6 +12,7 @@
     "guard:deploy": "node scripts/require-white-label-confirmation.mjs && node scripts/check-prohibited-identifiers.mjs",
     "build": "npm run check:safety && astro build && node scripts/patch-cloudflare-entry.mjs",
     "check": "astro check",
+    "check:routes": "node scripts/check-dashboard-routes.mjs",
     "preview": "astro preview",
     "astro": "astro",
     "generate-types": "wrangler types",

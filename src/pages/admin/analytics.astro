@@ -1,0 +1,16 @@
+---
+import MerchantAdminLayout from '../../layouts/MerchantAdminLayout.astro';
+import { requireStoreMembership } from '../../lib/platform/auth';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+---
+<MerchantAdminLayout title={`Analytics | ${store.name}`} store={store} user={user} membership={membership} heading="Analytics" description="Store performance without fabricated charts.">
+  <section class="grid">
+    <div class="card"><p class="muted">Sales</p><p class="metric">£0.00</p></div>
+    <div class="card"><p class="muted">Orders</p><p class="metric">0</p></div>
+    <div class="card"><p class="muted">Average order value</p><p class="metric">£0.00</p></div>
+    <div class="card"><p class="muted">Customer growth</p><p class="metric">0</p></div>
+  </section>
+  <section class="empty" style="margin-top:16px">Analytics will populate once this store has tenant-scoped orders and customers.</section>
+</MerchantAdminLayout>

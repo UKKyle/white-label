@@ -1,0 +1,17 @@
+---
+import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
+import Subnav from '../../../components/platform/Subnav.astro';
+import { requireStoreMembership } from '../../../lib/platform/auth';
+import { merchantSettingsNavigation } from '../../../lib/platform/navigation';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+const platformHost = `${store.slug}.platform.example`;
+---
+<MerchantAdminLayout title={`Domains | ${store.name}`} store={store} user={user} membership={membership} heading="Domains" description="Domain status and connection workflow for this store.">
+  <Subnav items={merchantSettingsNavigation} />
+  <section class="grid">
+    <div class="card"><h2>Platform subdomain</h2><p class="metric" style="font-size:20px">{platformHost}</p><span class="badge warning">Preview only</span></div>
+    <div class="card"><h2>Custom domain</h2><span class="badge">Not connected</span><p class="muted">DNS verification and Cloudflare custom hostnames are intentionally deferred.</p></div>
+  </section>
+</MerchantAdminLayout>

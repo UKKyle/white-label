@@ -1,0 +1,21 @@
+---
+import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
+import Subnav from '../../../components/platform/Subnav.astro';
+import { requireStoreMembership } from '../../../lib/platform/auth';
+import { merchantSettingsNavigation } from '../../../lib/platform/navigation';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+---
+<MerchantAdminLayout title={`Store details | ${store.name}`} store={store} user={user} membership={membership} heading="Store details" description="Identity and contact details for this store.">
+  <Subnav items={merchantSettingsNavigation} />
+  <section class="card">
+    <div class="grid">
+      <label class="field">Store name<input value={store.name} readonly /></label>
+      <label class="field">Store slug<input value={store.slug} readonly /></label>
+      <label class="field">Contact email<input value={store.contactEmail} readonly /></label>
+      <label class="field">Contact phone<input value={store.contactPhone} readonly /></label>
+    </div>
+    <p class="notice" style="margin-top:16px">Editing these details will be wired into the store-settings persistence layer after the route surface is stable.</p>
+  </section>
+</MerchantAdminLayout>

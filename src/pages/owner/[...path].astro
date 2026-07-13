@@ -1,0 +1,13 @@
+---
+import OwnerAdminLayout from '../../layouts/OwnerAdminLayout.astro';
+import { requirePlatformOwner } from '../../lib/platform/auth';
+const owner = await requirePlatformOwner(Astro);
+if (!owner) return Astro.redirect('/owner/login');
+Astro.response.status = 404;
+---
+<OwnerAdminLayout title="Owner page not found | White Label" heading="Page not found" description="This owner route does not exist in the White Label platform dashboard.">
+  <section class="empty">
+    The requested owner page was not found. Use the owner navigation to stay inside the platform control area.
+    <div style="margin-top:14px"><a class="button" href="/owner">Back to owner overview</a></div>
+  </section>
+</OwnerAdminLayout>

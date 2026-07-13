@@ -1,0 +1,14 @@
+---
+import MerchantAdminLayout from '../../layouts/MerchantAdminLayout.astro';
+import { requireStoreMembership } from '../../lib/platform/auth';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+---
+<MerchantAdminLayout title={`Marketing | ${store.name}`} store={store} user={user} membership={membership} heading="Marketing" description="Campaigns, segments and promotional tools for this store.">
+  <section class="grid">
+    <div class="card"><h2>Email campaigns</h2><span class="badge warning">Not configured</span><p class="muted">Email marketing is reserved for a store-scoped provider integration.</p></div>
+    <div class="card"><h2>Discounts</h2><span class="badge warning">Foundation only</span><p class="muted">Discount rules will be added without reusing the old public newsletter flow.</p></div>
+    <div class="card"><h2>Segments</h2><span class="badge">0 segments</span><p class="muted">Customer segments require tenant-scoped customer data.</p></div>
+  </section>
+</MerchantAdminLayout>

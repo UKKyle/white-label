@@ -1,0 +1,49 @@
+---
+import PlatformLayout from './PlatformLayout.astro';
+import { isActivePath, merchantNavigation } from '../lib/platform/navigation';
+import type { PlatformUser, Store, StoreMembership } from '../types/platform';
+
+const { title = 'Merchant admin | White Label', store, user, membership, eyebrow = 'Merchant workspace', heading = store.name, description = '' } = Astro.props as {
+  title?: string;
+  store: Store;
+  user: PlatformUser;
+  membership: StoreMembership;
+  eyebrow?: string;
+  heading?: string;
+  description?: string;
+};
+const pathname = Astro.url.pathname;
+---
+<PlatformLayout title={title}>
+  <div class="dashboard-shell">
+    <aside class="dashboard-sidebar" aria-label="Merchant navigation">
+      <div class="sidebar-brand">
+        <span class="brand-mark">WL</span>
+        <span>
+          <strong>{store.name}</strong>
+          <small>{store.status.replaceAll('_', ' ')}</small>
+        </span>
+      </div>
+      <nav class="sidebar-nav">
+        {merchantNavigation.map((item) => (
+          <a href={item.href} class:list={['sidebar-link', isActivePath(pathname, item.href) && 'is-active']}>{item.label}</a>
+        ))}
+      </nav>
+      <a class="sidebar-link sidebar-signout" href="/admin/logout">Sign out</a>
+    </aside>
+    <main class="dashboard-main">
+      <header class="dashboard-header">
+        <div>
+          <p class="eyebrow">{eyebrow}</p>
+          <h1>{heading}</h1>
+          {description && <p class="muted">{description}</p>}
+        </div>
+        <div class="header-meta">
+          <span class="status">{membership.role.replaceAll('_', ' ')}</span>
+          <span class="muted">{user.email}</span>
+        </div>
+      </header>
+      <slot />
+    </main>
+  </div>
+</PlatformLayout>

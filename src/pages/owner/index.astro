@@ -1,5 +1,34 @@
 ---
-import PlatformLayout from '../../layouts/PlatformLayout.astro'; import { requirePlatformOwner } from '../../lib/platform/auth'; import { listStores } from '../../lib/platform/store';
-const owner=await requirePlatformOwner(Astro); if(!owner)return Astro.redirect('/owner/login'); const stores=await listStores(Astro); const active=stores.filter(s=>s.status==='active'||s.status==='trial').length; const suspended=stores.filter(s=>s.status==='suspended').length;
+import OwnerAdminLayout from '../../layouts/OwnerAdminLayout.astro';
+import { requirePlatformOwner } from '../../lib/platform/auth';
+import { listAuditLogs, listPlatformUsers, listStores } from '../../lib/platform/store';
+const owner = await requirePlatformOwner(Astro);
+if (!owner) return Astro.redirect('/owner/login');
+const stores = await listStores(Astro);
+const users = await listPlatformUsers(Astro);
+const audits = await listAuditLogs(Astro, 5);
+const active = stores.filter((s) => ['active', 'trial'].includes(s.status)).length;
+const pastDue = stores.filter((s) => ['payment_due', 'past_due'].includes(s.billingStatus)).length;
+const suspended = stores.filter((s) => s.status === 'suspended').length;
 ---
-<PlatformLayout title="Platform overview | White Label"><div class="shell"><nav class="nav"><strong>WHITE LABEL</strong><a href="/owner">Overview</a><a href="/owner/stores">Stores</a><a href="/owner/stores/new">Create store</a><a href="/admin/logout">Sign out</a></nav><main class="main stack"><div class="split"><div><div class="brand">Platform owner</div><h1>Overview</h1></div><span class="status">Protected</span></div><section class="grid"><div class="card"><div class="muted">Total stores</div><div class="metric">{stores.length}</div></div><div class="card"><div class="muted">Active or trial</div><div class="metric">{active}</div></div><div class="card"><div class="muted">Suspended</div><div class="metric">{suspended}</div></div></section><section class="card"><h2>Platform activity</h2><p class="muted">No fabricated analytics are displayed. Store activity and audit history appear as merchants begin using the platform.</p></section></main></div></PlatformLayout>
+<OwnerAdminLayout title="Owner overview | White Label" heading="Overview" description="Platform-wide store health and recent activity.">
+  <section class="grid">
+    <div class="card"><p class="muted">Total stores</p><p class="metric">{stores.length}</p></div>
+    <div class="card"><p class="muted">Active or trial</p><p class="metric">{active}</p></div>
+    <div class="card"><p class="muted">Past due</p><p class="metric">{pastDue}</p></div>
+    <div class="card"><p class="muted">Suspended</p><p class="metric">{suspended}</p></div>
+    <div class="card"><p class="muted">Merchants</p><p class="metric">{users.length}</p></div>
+  </section>
+  <section class="two-col" style="margin-top:16px">
+    <div class="card">
+      <h2>Stores requiring attention</h2>
+      {stores.filter((s) => s.status !== 'active' && s.status !== 'trial').length ? (
+        <ul class="checklist">{stores.filter((s) => s.status !== 'active' && s.status !== 'trial').map((store) => <li><span class="dot"></span><a href={`/owner/stores/${store.id}`}>{store.name}</a> {store.status}</li>)}</ul>
+      ) : <p class="muted">No stores currently require attention.</p>}
+    </div>
+    <div class="card">
+      <h2>Recent activity</h2>
+      {audits.length ? <ul class="checklist">{audits.map((event) => <li><span class="dot done"></span>{event.action} <span class="muted">{new Date(event.createdAt).toLocaleString('en-GB')}</span></li>)}</ul> : <p class="muted">No audit events recorded yet.</p>}
+    </div>
+  </section>
+</OwnerAdminLayout>

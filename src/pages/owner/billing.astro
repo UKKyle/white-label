@@ -1,0 +1,15 @@
+---
+import OwnerAdminLayout from '../../layouts/OwnerAdminLayout.astro';
+import { requirePlatformOwner } from '../../lib/platform/auth';
+import { listStores } from '../../lib/platform/store';
+const owner = await requirePlatformOwner(Astro);
+if (!owner) return Astro.redirect('/owner/login');
+const stores = await listStores(Astro);
+const statuses = ['trial', 'active', 'payment_due', 'past_due', 'suspended', 'cancelled'];
+---
+<OwnerAdminLayout title="Platform billing | White Label" heading="Billing" description="Platform-wide billing status by store.">
+  <section class="grid">{statuses.map((status) => <div class="card"><p class="muted">{status.replaceAll('_', ' ')}</p><p class="metric">{stores.filter((store) => store.billingStatus === status).length}</p></div>)}</section>
+  <section class="table-wrap" style="margin-top:16px">
+    <table><thead><tr><th>Store</th><th>Plan</th><th>Billing status</th><th>Store status</th><th>Action</th></tr></thead><tbody>{stores.length ? stores.map((store) => <tr><td>{store.name}</td><td>{store.plan}</td><td><span class="badge">{store.billingStatus.replaceAll('_', ' ')}</span></td><td>{store.status.replaceAll('_', ' ')}</td><td><a class="button secondary" href={`/owner/stores/${store.id}`}>Manage</a></td></tr>) : <tr><td colspan="5"><div class="empty">No stores to bill yet.</div></td></tr>}</tbody></table>
+  </section>
+</OwnerAdminLayout>

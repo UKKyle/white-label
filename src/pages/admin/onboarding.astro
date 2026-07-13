@@ -1,5 +1,16 @@
 ---
-import PlatformLayout from '../../layouts/PlatformLayout.astro'; import { requireStoreMembership } from '../../lib/platform/auth';
-const value=await requireStoreMembership(Astro); if(!value)return Astro.redirect('/login');
+import MerchantAdminLayout from '../../layouts/MerchantAdminLayout.astro';
+import { requireStoreMembership } from '../../lib/platform/auth';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
 ---
-<PlatformLayout title="Set up your store | White Label"><div class="shell"><nav class="nav"><strong>{value.store.name}</strong><a href="/admin">Home</a><a href="/admin/onboarding">Set up</a><a href="/admin/logout">Sign out</a></nav><main class="main stack"><div><div class="brand">Store setup</div><h1>Your blank workspace is ready</h1><p class="muted">White Label has not added demo products, pages, customers, or orders to your store.</p></div><section class="card stack"><a class="button secondary" href="/admin/settings">Add business details</a><a class="button secondary" href="/admin/products">Add your first product</a><a class="button secondary" href="/admin/online-store">Configure online store</a><a class="button" href="/admin">Open dashboard</a></section></main></div></PlatformLayout>
+<MerchantAdminLayout title={`Set up ${store.name} | White Label`} store={store} user={user} membership={membership} heading="Set up your store" description="Start with the essentials. Each action stays inside the merchant dashboard.">
+  <section class="grid">
+    <a class="card" href="/admin/settings/store" style="text-decoration:none"><h2>Store details</h2><p class="muted">Review business identity and contact details.</p></a>
+    <a class="card" href="/admin/products" style="text-decoration:none"><h2>Products</h2><p class="muted">Prepare the tenant catalogue workspace.</p></a>
+    <a class="card" href="/admin/online-store/branding" style="text-decoration:none"><h2>Branding</h2><p class="muted">Configure the storefront look and feel.</p></a>
+    <a class="card" href="/admin/settings/fulfilment" style="text-decoration:none"><h2>Fulfilment</h2><p class="muted">Plan delivery, collection or dispatch.</p></a>
+  </section>
+  <section class="card" style="margin-top:16px"><a class="button" href="/admin">Open dashboard</a></section>
+</MerchantAdminLayout>

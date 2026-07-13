@@ -1,0 +1,16 @@
+---
+import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
+import Subnav from '../../../components/platform/Subnav.astro';
+import { requireStoreMembership } from '../../../lib/platform/auth';
+import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+---
+<MerchantAdminLayout title={`Navigation | ${store.name}`} store={store} user={user} membership={membership} heading="Navigation" description="Header and footer menus for this store.">
+  <Subnav items={merchantOnlineStoreNavigation} />
+  <section class="grid">
+    <div class="card"><h2>Header menu</h2><p class="muted">No menu items have been added yet.</p><button class="secondary" disabled>Add link</button></div>
+    <div class="card"><h2>Footer menu</h2><p class="muted">No footer groups have been added yet.</p><button class="secondary" disabled>Add group</button></div>
+  </section>
+</MerchantAdminLayout>

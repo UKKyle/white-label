@@ -1,0 +1,19 @@
+---
+import MerchantAdminLayout from '../../layouts/MerchantAdminLayout.astro';
+import { requireStoreMembership } from '../../lib/platform/auth';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+---
+<MerchantAdminLayout title={`Products | ${store.name}`} store={store} user={user} membership={membership} heading="Products" description="Build the catalogue for this store.">
+  <section class="toolbar">
+    <input class="input" type="search" placeholder="Search products" aria-label="Search products" style="max-width:320px" />
+    <a class="button" href="/admin/products/new">Add product</a>
+  </section>
+  <section class="table-wrap">
+    <table>
+      <thead><tr><th>Product</th><th>Status</th><th>Inventory</th><th>Price</th><th>Type</th><th>Action</th></tr></thead>
+      <tbody><tr><td colspan="6"><div class="empty">No products have been added to this store yet. Product persistence is ready to be connected to the tenant catalogue in the next pass.</div></td></tr></tbody>
+    </table>
+  </section>
+</MerchantAdminLayout>

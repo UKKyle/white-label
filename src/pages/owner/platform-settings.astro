@@ -1,0 +1,15 @@
+---
+import OwnerAdminLayout from '../../layouts/OwnerAdminLayout.astro';
+import { requirePlatformOwner } from '../../lib/platform/auth';
+const owner = await requirePlatformOwner(Astro);
+if (!owner) return Astro.redirect('/owner/login');
+---
+<OwnerAdminLayout title="Platform settings | White Label" heading="Platform settings" description="Platform defaults, registration controls and security settings.">
+  <section class="grid">
+    <div class="card"><h2>Platform identity</h2><p class="muted">White Label</p><span class="badge success">Active</span></div>
+    <div class="card"><h2>Registration</h2><p class="muted">Merchant self-registration is enabled and creates trial stores.</p><span class="badge warning">Owner review recommended</span></div>
+    <div class="card"><h2>Default plan</h2><p class="muted">New stores start on the starter trial plan.</p><span class="badge">starter</span></div>
+    <div class="card"><h2>Security</h2><p class="muted">Owner access uses the existing password plus authenticator-code flow.</p><span class="badge success">Protected</span></div>
+  </section>
+  <section class="notice" style="margin-top:16px">Editable platform settings should be added after persistent platform configuration and audit-protected mutations are in place.</section>
+</OwnerAdminLayout>

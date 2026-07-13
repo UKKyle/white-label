@@ -1,0 +1,8 @@
+---
+import { isActivePath, type PlatformNavItem } from '../../lib/platform/navigation';
+const { items } = Astro.props as { items: PlatformNavItem[] };
+const pathname = Astro.url.pathname;
+---
+<nav class="tabs" aria-label="Section navigation">
+  {items.map((item) => <a class:list={['tab', isActivePath(pathname, item.href) && 'is-active']} href={item.href}>{item.label}</a>)}
+</nav>

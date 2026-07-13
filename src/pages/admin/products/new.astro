@@ -1,0 +1,14 @@
+---
+import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
+import { requireStoreMembership } from '../../../lib/platform/auth';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+---
+<MerchantAdminLayout title={`Add product | ${store.name}`} store={store} user={user} membership={membership} heading="Add product" description="Create products for this store.">
+  <section class="card">
+    <h2>Product editor foundation</h2>
+    <p class="muted">The tenant product editor is not connected yet. This route exists so merchant actions stay inside the dashboard while the store-scoped catalogue model is completed.</p>
+    <div style="margin-top:14px"><a class="button secondary" href="/admin/products">Back to products</a></div>
+  </section>
+</MerchantAdminLayout>

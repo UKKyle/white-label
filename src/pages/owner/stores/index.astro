@@ -1,0 +1,32 @@
+---
+import OwnerAdminLayout from '../../../layouts/OwnerAdminLayout.astro';
+import { requirePlatformOwner } from '../../../lib/platform/auth';
+import { getUserById, listStores } from '../../../lib/platform/store';
+const owner = await requirePlatformOwner(Astro);
+if (!owner) return Astro.redirect('/owner/login');
+const q = (Astro.url.searchParams.get('q') ?? '').toLowerCase();
+const stores = await listStores(Astro);
+const rows = await Promise.all(stores.map(async (store) => ({ store, owner: await getUserById(store.ownerUserId, Astro) })));
+const filtered = q ? rows.filter((row) => [row.store.name, row.store.slug, row.owner?.email ?? ''].join(' ').toLowerCase().includes(q)) : rows;
+---
+<OwnerAdminLayout title="Stores | White Label" heading="Stores" description="Manage every merchant store on the platform.">
+  <form class="toolbar" method="GET"><input class="input" name="q" value={q} type="search" placeholder="Search stores" aria-label="Search stores" style="max-width:340px" /><button>Search</button></form>
+  <section class="table-wrap">
+    <table>
+      <thead><tr><th>Store</th><th>Owner</th><th>Status</th><th>Billing</th><th>Plan</th><th>Last activity</th><th>Action</th></tr></thead>
+      <tbody>
+        {filtered.length ? filtered.map(({ store, owner: storeOwner }) => (
+          <tr>
+            <td><strong>{store.name}</strong><br /><span class="muted">{store.slug}</span></td>
+            <td>{storeOwner?.email ?? store.contactEmail}</td>
+            <td><span class="badge">{store.status.replaceAll('_', ' ')}</span></td>
+            <td><span class="badge">{store.billingStatus.replaceAll('_', ' ')}</span></td>
+            <td>{store.plan}</td>
+            <td>{new Date(store.lastActivityAt).toLocaleString('en-GB')}</td>
+            <td><a class="button secondary" href={`/owner/stores/${store.id}`}>Manage</a></td>
+          </tr>
+        )) : <tr><td colspan="7"><div class="empty">No stores match this search.</div></td></tr>}
+      </tbody>
+    </table>
+  </section>
+</OwnerAdminLayout>

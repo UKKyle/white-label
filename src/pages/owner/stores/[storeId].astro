@@ -1,0 +1,61 @@
+---
+import OwnerAdminLayout from '../../../layouts/OwnerAdminLayout.astro';
+import { requirePlatformOwner } from '../../../lib/platform/auth';
+import { getStore, getUserById, listAuditLogs, listStoreMemberships, updateStoreStatus } from '../../../lib/platform/store';
+const owner = await requirePlatformOwner(Astro);
+if (!owner) return Astro.redirect('/owner/login');
+const storeId = Astro.params.storeId ?? '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') ?? '');
+  if (action === 'suspend') await updateStoreStatus({ storeId, status: 'suspended', actorUserId: owner.user.id, actorRole: owner.session.role }, Astro);
+  if (action === 'reactivate') await updateStoreStatus({ storeId, status: 'active', billingStatus: 'active', actorUserId: owner.user.id, actorRole: owner.session.role }, Astro);
+  if (action === 'billing') await updateStoreStatus({ storeId, billingStatus: String(form.get('billingStatus')) as any, actorUserId: owner.user.id, actorRole: owner.session.role }, Astro);
+  return Astro.redirect(`/owner/stores/${storeId}`);
+}
+const store = await getStore(storeId, Astro);
+if (!store) {
+  Astro.response.status = 404;
+} 
+const storeOwner = store ? await getUserById(store.ownerUserId, Astro) : null;
+const memberships = store ? await listStoreMemberships(store.id, Astro) : [];
+const audits = (await listAuditLogs(Astro, 50)).filter((event) => event.storeId === storeId).slice(0, 10);
+---
+<OwnerAdminLayout title="Store detail | White Label" heading={store?.name ?? 'Store not found'} description={store ? 'Store summary, owner, status and platform controls.' : 'The requested store does not exist.'}>
+  {!store ? (
+    <section class="empty"><a class="button" href="/owner/stores">Back to stores</a></section>
+  ) : (
+    <>
+      <section class="grid">
+        <div class="card"><p class="muted">Store status</p><p class="metric">{store.status.replaceAll('_', ' ')}</p></div>
+        <div class="card"><p class="muted">Billing</p><p class="metric">{store.billingStatus.replaceAll('_', ' ')}</p></div>
+        <div class="card"><p class="muted">Plan</p><p class="metric">{store.plan}</p></div>
+        <div class="card"><p class="muted">Owner</p><p class="metric" style="font-size:20px">{storeOwner?.email ?? store.contactEmail}</p></div>
+      </section>
+      <section class="two-col" style="margin-top:16px">
+        <div class="card">
+          <h2>Merchant details</h2>
+          <p><strong>Business category:</strong> {store.businessCategory || 'Not provided'}</p>
+          <p><strong>Contact phone:</strong> {store.contactPhone || 'Not provided'}</p>
+          <p><strong>Created:</strong> {new Date(store.createdAt).toLocaleString('en-GB')}</p>
+          <p><strong>Memberships:</strong> {memberships.length}</p>
+        </div>
+        <div class="card">
+          <h2>Owner controls</h2>
+          <form method="POST" class="stack">
+            <button class="danger" name="action" value="suspend">Suspend store</button>
+            <button name="action" value="reactivate">Reactivate store</button>
+          </form>
+          <form method="POST" class="stack" style="margin-top:14px">
+            <label class="field">Billing status<select name="billingStatus"><option value="trial">Trial</option><option value="active">Active</option><option value="payment_due">Payment due</option><option value="past_due">Past due</option><option value="suspended">Suspended</option></select></label>
+            <button class="secondary" name="action" value="billing">Update billing</button>
+          </form>
+        </div>
+      </section>
+      <section class="card" style="margin-top:16px">
+        <h2>Recent audit trail</h2>
+        {audits.length ? <ul class="checklist">{audits.map((event) => <li><span class="dot done"></span>{event.action} <span class="muted">{new Date(event.createdAt).toLocaleString('en-GB')}</span></li>)}</ul> : <p class="muted">No store-specific audit events yet.</p>}
+      </section>
+    </>
+  )}
+</OwnerAdminLayout>

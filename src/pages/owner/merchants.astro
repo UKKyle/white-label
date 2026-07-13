@@ -1,0 +1,21 @@
+---
+import OwnerAdminLayout from '../../layouts/OwnerAdminLayout.astro';
+import { requirePlatformOwner } from '../../lib/platform/auth';
+import { listPlatformUsers, listStores } from '../../lib/platform/store';
+const owner = await requirePlatformOwner(Astro);
+if (!owner) return Astro.redirect('/owner/login');
+const users = await listPlatformUsers(Astro);
+const stores = await listStores(Astro);
+---
+<OwnerAdminLayout title="Merchants | White Label" heading="Merchants" description="Merchant users and their store ownership.">
+  <section class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Stores</th><th>Status</th><th>Last login</th></tr></thead>
+      <tbody>
+        {users.length ? users.map((user) => (
+          <tr><td>{user.firstName} {user.lastName}</td><td>{user.email}</td><td>{user.phone}</td><td>{stores.filter((store) => store.ownerUserId === user.id).map((store) => store.name).join(', ')}</td><td><span class="badge">{user.status}</span></td><td>{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('en-GB') : 'Never'}</td></tr>
+        )) : <tr><td colspan="6"><div class="empty">No merchant users exist yet.</div></td></tr>}
+      </tbody>
+    </table>
+  </section>
+</OwnerAdminLayout>

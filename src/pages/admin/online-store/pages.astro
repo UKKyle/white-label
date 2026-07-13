@@ -1,0 +1,14 @@
+---
+import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
+import Subnav from '../../../components/platform/Subnav.astro';
+import { requireStoreMembership } from '../../../lib/platform/auth';
+import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+---
+<MerchantAdminLayout title={`Pages | ${store.name}`} store={store} user={user} membership={membership} heading="Pages" description="Structured storefront pages for this store.">
+  <Subnav items={merchantOnlineStoreNavigation} />
+  <section class="toolbar"><span class="badge">0 pages</span><button class="secondary" disabled>Create page</button></section>
+  <section class="table-wrap"><table><thead><tr><th>Page</th><th>Type</th><th>Status</th><th>Updated</th><th>Action</th></tr></thead><tbody><tr><td colspan="5"><div class="empty">No CMS pages are configured yet. Homepage sections and policy pages will appear here once the tenant page model is wired.</div></td></tr></tbody></table></section>
+</MerchantAdminLayout>

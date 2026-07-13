@@ -1,0 +1,15 @@
+---
+import MerchantAdminLayout from '../../layouts/MerchantAdminLayout.astro';
+import { requireStoreMembership } from '../../lib/platform/auth';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+---
+<MerchantAdminLayout title={`Billing | ${store.name}`} store={store} user={user} membership={membership} heading="Billing" description="Plan and billing status for this store only.">
+  <section class="grid">
+    <div class="card"><p class="muted">Current plan</p><p class="metric">{store.plan}</p></div>
+    <div class="card"><p class="muted">Billing status</p><p class="metric">{store.billingStatus.replaceAll('_', ' ')}</p></div>
+    <div class="card"><p class="muted">Store status</p><p class="metric">{store.status.replaceAll('_', ' ')}</p></div>
+  </section>
+  <section class="notice" style="margin-top:16px">Merchant billing changes are controlled by the platform owner. No platform-wide billing controls are exposed here.</section>
+</MerchantAdminLayout>

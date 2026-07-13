@@ -1,0 +1,16 @@
+---
+import OwnerAdminLayout from '../../layouts/OwnerAdminLayout.astro';
+import { requirePlatformOwner } from '../../lib/platform/auth';
+import { listStores } from '../../lib/platform/store';
+const owner = await requirePlatformOwner(Astro);
+if (!owner) return Astro.redirect('/owner/login');
+const stores = await listStores(Astro);
+const attention = stores.filter((store) => ['payment_due', 'past_due', 'suspended'].includes(store.status) || ['payment_due', 'past_due', 'suspended'].includes(store.billingStatus));
+---
+<OwnerAdminLayout title="Support | White Label" heading="Support" description="Platform support view for stores requiring assistance.">
+  <section class="card">
+    <h2>Stores requiring assistance</h2>
+    {attention.length ? <ul class="checklist">{attention.map((store) => <li><span class="dot"></span><a href={`/owner/stores/${store.id}`}>{store.name}</a> <span class="muted">{store.status} / {store.billingStatus}</span></li>)}</ul> : <p class="muted">No stores currently require support attention.</p>}
+  </section>
+  <section class="notice" style="margin-top:16px">Support mode is not enabled yet. This page intentionally avoids impersonation or cross-store data access.</section>
+</OwnerAdminLayout>

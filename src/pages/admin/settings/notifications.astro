@@ -1,0 +1,16 @@
+---
+import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
+import Subnav from '../../../components/platform/Subnav.astro';
+import { requireStoreMembership } from '../../../lib/platform/auth';
+import { merchantSettingsNavigation } from '../../../lib/platform/navigation';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+---
+<MerchantAdminLayout title={`Notifications | ${store.name}`} store={store} user={user} membership={membership} heading="Notifications" description="Store email and alert settings.">
+  <Subnav items={merchantSettingsNavigation} />
+  <section class="card">
+    <h2>Email notifications</h2>
+    <p class="muted">Notification templates and sender configuration are not connected yet. Store-specific email settings will live here and must not expose provider secrets.</p>
+  </section>
+</MerchantAdminLayout>

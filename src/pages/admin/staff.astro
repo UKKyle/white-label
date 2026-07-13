@@ -1,0 +1,32 @@
+---
+import MerchantAdminLayout from '../../layouts/MerchantAdminLayout.astro';
+import { requireStoreMembership } from '../../lib/platform/auth';
+import { listStoreMemberships, getUserById } from '../../lib/platform/store';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+const memberships = await listStoreMemberships(store.id, Astro);
+const rows = await Promise.all(memberships.map(async (item) => ({ membership: item, user: await getUserById(item.userId, Astro) })));
+---
+<MerchantAdminLayout title={`Staff | ${store.name}`} store={store} user={user} membership={membership} heading="Staff" description="Manage people with access to this store.">
+  <section class="toolbar">
+    <span class="badge">{rows.length} active member{rows.length === 1 ? '' : 's'}</span>
+    <button class="secondary" type="button" disabled>Invite staff</button>
+  </section>
+  <section class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr>
+            <td>{row.user ? `${row.user.firstName} ${row.user.lastName}` : 'Unknown user'}</td>
+            <td>{row.user?.email ?? 'Unavailable'}</td>
+            <td><span class="badge">{row.membership.role.replaceAll('_', ' ')}</span></td>
+            <td>{row.membership.status}</td>
+            <td><span class="muted">Owner managed</span></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </section>
+</MerchantAdminLayout>

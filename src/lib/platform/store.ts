@@ -47,6 +47,45 @@ export async function listStores(context?: RuntimeContext) {
   return (await Promise.all(ids.map((storeId) => getStore(storeId, context)))).filter((item): item is Store => Boolean(item));
 }
 export async function getSettings(storeId: string, context?: RuntimeContext) { return read<StoreSettings>(key('settings', storeId), context); }
+export async function listAuditLogs(context?: RuntimeContext, limit = 100) {
+  const ids = await read<string[]>(key('audits'), context) ?? [];
+  return (await Promise.all(ids.slice(0, limit).map((auditId) => read<AuditLog>(key('audit', auditId), context)))).filter((item): item is AuditLog => Boolean(item));
+}
+export async function listPlatformUsers(context?: RuntimeContext) {
+  const stores = await listStores(context);
+  const userIds = [...new Set(stores.map((store) => store.ownerUserId))];
+  return (await Promise.all(userIds.map((userId) => getUserById(userId, context)))).filter((item): item is PlatformUser => Boolean(item));
+}
+export async function listStoreMemberships(storeId: string, context?: RuntimeContext) {
+  const store = await getStore(storeId, context);
+  if (!store) return [];
+  const ownerMembership = await getMembership(store.ownerUserId, storeId, context);
+  return ownerMembership ? [ownerMembership] : [];
+}
+export async function updateStoreStatus(input: { storeId: string; status?: Store['status']; billingStatus?: Store['billingStatus']; actorUserId: string; actorRole: PlatformSession['role'] }, context?: RuntimeContext) {
+  const store = await getStore(input.storeId, context);
+  if (!store) return null;
+  const updated: Store = {
+    ...store,
+    status: input.status ?? store.status,
+    billingStatus: input.billingStatus ?? store.billingStatus,
+    updatedAt: now(),
+  };
+  await write(key('store', input.storeId), updated, context);
+  await appendAudit({
+    actorUserId: input.actorUserId,
+    actorRole: input.actorRole,
+    storeId: input.storeId,
+    action: input.status ? 'store.status_changed' : 'store.billing_changed',
+    targetType: 'store',
+    targetId: input.storeId,
+    metadata: {
+      status: updated.status,
+      billingStatus: updated.billingStatus,
+    },
+  }, context);
+  return updated;
+}
 
 export async function appendAudit(input: Omit<AuditLog, 'id' | 'createdAt'>, context?: RuntimeContext) {
   const event: AuditLog = { ...input, id: id(), createdAt: now() };

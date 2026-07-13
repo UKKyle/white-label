@@ -1,0 +1,21 @@
+---
+import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
+import Subnav from '../../../components/platform/Subnav.astro';
+import { requireStoreMembership } from '../../../lib/platform/auth';
+import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+---
+<MerchantAdminLayout title={`Branding | ${store.name}`} store={store} user={user} membership={membership} heading="Branding" description="Logo, colours and typography for this store.">
+  <Subnav items={merchantOnlineStoreNavigation} />
+  <section class="card">
+    <div class="grid">
+      <label class="field">Logo<input type="file" disabled /></label>
+      <label class="field">Primary colour<input type="color" value="#17202a" disabled /></label>
+      <label class="field">Typography<select disabled><option>System Sans</option></select></label>
+      <label class="field">Favicon<input type="file" disabled /></label>
+    </div>
+    <p class="notice" style="margin-top:16px">Brand fields are presented in the new platform UX. Saving will be connected to tenant storefront settings in the Store Builder persistence pass.</p>
+  </section>
+</MerchantAdminLayout>

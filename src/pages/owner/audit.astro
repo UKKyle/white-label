@@ -1,0 +1,21 @@
+---
+import OwnerAdminLayout from '../../layouts/OwnerAdminLayout.astro';
+import { requirePlatformOwner } from '../../lib/platform/auth';
+import { getStore, listAuditLogs } from '../../lib/platform/store';
+const owner = await requirePlatformOwner(Astro);
+if (!owner) return Astro.redirect('/owner/login');
+const audits = await listAuditLogs(Astro, 100);
+const rows = await Promise.all(audits.map(async (event) => ({ event, store: event.storeId ? await getStore(event.storeId, Astro) : null })));
+---
+<OwnerAdminLayout title="Audit log | White Label" heading="Audit log" description="Sensitive platform and store events.">
+  <section class="table-wrap">
+    <table>
+      <thead><tr><th>Action</th><th>Actor</th><th>Store</th><th>Target</th><th>Time</th><th>Metadata</th></tr></thead>
+      <tbody>
+        {rows.length ? rows.map(({ event, store }) => (
+          <tr><td>{event.action}</td><td>{event.actorRole}<br /><span class="muted">{event.actorUserId}</span></td><td>{store?.name ?? 'Platform'}</td><td>{event.targetType}:{event.targetId}</td><td>{new Date(event.createdAt).toLocaleString('en-GB')}</td><td><code>{JSON.stringify(event.metadata)}</code></td></tr>
+        )) : <tr><td colspan="6"><div class="empty">No audit events recorded yet.</div></td></tr>}
+      </tbody>
+    </table>
+  </section>
+</OwnerAdminLayout>

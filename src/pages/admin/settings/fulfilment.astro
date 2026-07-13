@@ -1,0 +1,17 @@
+---
+import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
+import Subnav from '../../../components/platform/Subnav.astro';
+import { requireStoreMembership } from '../../../lib/platform/auth';
+import { merchantSettingsNavigation } from '../../../lib/platform/navigation';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+---
+<MerchantAdminLayout title={`Fulfilment | ${store.name}`} store={store} user={user} membership={membership} heading="Fulfilment" description="Delivery, collection and dispatch settings for this store.">
+  <Subnav items={merchantSettingsNavigation} />
+  <section class="grid">
+    <div class="card"><h2>Delivery</h2><span class="badge warning">Not configured</span><p class="muted">Set delivery methods, areas and lead times here.</p></div>
+    <div class="card"><h2>Collection</h2><span class="badge warning">Not configured</span><p class="muted">Set collection location and instructions here.</p></div>
+    <div class="card"><h2>Dispatch</h2><span class="badge warning">Not configured</span><p class="muted">Shipping workflows can be added without assuming any industry.</p></div>
+  </section>
+</MerchantAdminLayout>

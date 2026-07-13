@@ -1,0 +1,14 @@
+---
+import MerchantAdminLayout from '../../layouts/MerchantAdminLayout.astro';
+import { requireStoreMembership } from '../../lib/platform/auth';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+Astro.response.status = 404;
+---
+<MerchantAdminLayout title={`Not found | ${store.name}`} store={store} user={user} membership={membership} heading="Page not found" description="This merchant-admin route does not exist in the White Label dashboard.">
+  <section class="empty">
+    The requested admin page was not found. Use the merchant navigation to stay inside the dashboard.
+    <div style="margin-top:14px"><a class="button" href="/admin">Back to merchant home</a></div>
+  </section>
+</MerchantAdminLayout>

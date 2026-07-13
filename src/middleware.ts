@@ -1,21 +1,13 @@
 import { defineMiddleware } from 'astro:middleware';
 import { applySecurity } from './middleware/security';
-import { businessConfig } from './config/business';
 
-const canonicalHost = new URL(businessConfig.siteUrl).hostname.toLowerCase();
-const redirectHosts = new Set([businessConfig.domain, `www.${businessConfig.domain}`]
-  .map((host) => host.toLowerCase())
-  .filter((host) => host !== canonicalHost));
+const retiredPublicPaths = new Set(['/about','/cart','/contact','/faq','/loyalty','/privacy','/terms','/cookies-policy','/allergen-information','/order-confirmation','/products','/account']);
+const retiredAdminPaths = new Set(['/admin/login','/admin/orders','/admin/customers','/admin/images','/admin/availability']);
 
 export const onRequest = defineMiddleware(async (context, next) => {
-  const host = context.url.hostname.toLowerCase();
-
-  if (redirectHosts.has(host)) {
-    const target = new URL(context.url);
-    target.protocol = 'https:';
-    target.hostname = canonicalHost;
-    return Response.redirect(target, 301);
-  }
-
+  const pathname = context.url.pathname.replace(/\/$/, '') || '/';
+  if (retiredPublicPaths.has(pathname) || pathname.startsWith('/products/') || pathname.startsWith('/account/')) return context.redirect('/');
+  if (pathname === '/admin/login') return context.redirect('/owner/login');
+  if (retiredAdminPaths.has(pathname) || pathname.startsWith('/admin/online-store')) return context.redirect('/admin');
   return applySecurity(context, next);
 });

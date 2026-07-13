@@ -1,28 +1,11 @@
-# Architecture Notes
+# White Label architecture
 
-## Storefront
+`PlatformUser`, `Store`, `StoreMembership`, `StoreSettings`, and `AuditLog` live in `src/types/platform.ts`. Tenant persistence lives in `src/lib/platform/store.ts`; it uses the Worker KV binding in production and a memory fallback locally.
 
-- Astro server-rendered storefront with Tailwind CSS.
-- Public marketing pages, product catalogue, product pages, cart, and order confirmation live under `src/pages`.
-- Shared visual primitives live in `src/components`.
+Merchant registration atomically provisions a user, blank trial store, owner membership and neutral settings. Store IDs are generated server-side. A merchant session contains its resolved store context; `requireStoreMembership` validates that membership server-side before access. Platform-owner sessions are separate and can never be reached through merchant routes.
 
-## Admin CMS
+Billing is store state: `trial`, `active`, `payment_due`, `past_due`, `suspended`, or `cancelled`. Suspended and cancelled stores are rejected by the tenant access helper. Sensitive provisioning events are appended to an audit log.
 
-- Admin routes live under `src/pages/admin`.
-- Product, image, availability, order, and settings surfaces are preserved from the imported baseline.
+No support impersonation exists. It must be implemented as an explicit, audited, time-bound mode rather than a session swap.
 
-## Authentication and Accounts
-
-- Admin authentication is handled in `src/lib/adminAuth.ts`.
-- Customer account flows, loyalty, and password/email verification remain in their existing modules and routes.
-
-## Orders, Email, and Payments
-
-- Checkout session creation remains in `src/pages/api/checkout/session.ts`.
-- Order storage and lifecycle logic remain in `src/lib/orderStore.ts` and `src/lib/orderService.ts`.
-- Resend and Web3Forms integrations remain server-side only.
-
-## Storage and Deployment
-
-- Cloudflare adapter configuration remains in Astro and Wrangler config.
-- Deployment is protected by repository-level safety scripts and neutral defaults added in Phase 1.
+The legacy single-store storefront is retired by middleware. The next migration pass must add store-scoped product, order, customer, CMS, POS and asset services before enabling those merchant routes.

@@ -1,0 +1,8 @@
+---
+import PlatformLayout from '../../layouts/PlatformLayout.astro';
+import { authenticateAdminLogin } from '../../lib/adminAuth';
+import { startSession } from '../../lib/platform/auth';
+let error='';
+if(Astro.request.method==='POST'){const f=await Astro.request.formData();const email=String(f.get('email')??'');const result=await authenticateAdminLogin(email,String(f.get('password')??''),String(f.get('totp')??''),Astro);if(!result.ok)error='Unable to sign in with those credentials.';else return new Response(null,{status:303,headers:{Location:'/owner','Set-Cookie':await startSession({userId:email.trim().toLowerCase(),role:'platform_owner'},Astro)}})}
+---
+<PlatformLayout title="Owner login | White Label"><main class="auth"><form class="panel stack" method="post"><div class="brand">White Label · owner</div><div><h1>Platform administration</h1><p class="muted">Restricted access for the platform owner.</p></div>{error&&<p class="error">{error}</p>}<label class="field">Email<input name="email" type="email" required/></label><label class="field">Password<input name="password" type="password" required/></label><label class="field">Authenticator code<input name="totp" inputmode="numeric" pattern="[0-9]{6}" required/></label><button>Sign in securely</button><a class="muted" href="/">Return to White Label</a></form></main></PlatformLayout>

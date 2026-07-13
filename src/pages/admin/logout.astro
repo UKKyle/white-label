@@ -1,14 +1,4 @@
 ---
-import { buildClearAdminSessionCookie } from '../../lib/adminAuth';
-import { routes } from '../../lib/routes';
-
-export const prerender = false;
-
-return new Response(null, {
-  status: 303,
-  headers: {
-    Location: routes.adminLogin,
-    'Set-Cookie': buildClearAdminSessionCookie(Astro),
-  },
-});
+import { endSession } from '../../lib/platform/auth';
+return new Response(null,{status:303,headers:{Location:'/', 'Set-Cookie':await endSession(Astro)}});
 ---

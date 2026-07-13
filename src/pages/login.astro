@@ -1,0 +1,8 @@
+---
+import PlatformLayout from '../layouts/PlatformLayout.astro';
+import { authenticateMerchant } from '../lib/platform/store';
+import { startSession } from '../lib/platform/auth';
+let error = '';
+if (Astro.request.method === 'POST') { const form = await Astro.request.formData(); const result = await authenticateMerchant(String(form.get('email') ?? ''), String(form.get('password') ?? ''), Astro); if (!result) error = 'Email or password is incorrect.'; else return new Response(null,{status:303,headers:{Location:'/admin','Set-Cookie':await startSession({userId:result.user.id,role:result.membership.role,storeId:result.store.id},Astro)}}); }
+---
+<PlatformLayout title="Merchant login | White Label"><main class="auth"><form class="panel stack" method="post"><div class="brand">White Label</div><div><h1>Welcome back</h1><p class="muted">Use your merchant account to continue.</p></div>{error && <p class="error">{error}</p>}<label class="field">Email<input name="email" type="email" autocomplete="email" required /></label><label class="field">Password<input name="password" type="password" autocomplete="current-password" required /></label><button>Sign in</button><a class="muted" href="/forgot-password">Forgot password?</a><a class="muted" href="/create-account">Create a store account</a></form></main></PlatformLayout>

@@ -1,6 +1,7 @@
 import type { BlockInstance, GlobalThemeSettings, PageConfiguration, SectionInstance, StorefrontTemplateManifest, TemplateKey, ThemeSettings } from '../../types/storefront';
 
-const id = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
+let deterministicIdCounter = 0;
+const id = (prefix: string) => `${prefix}-${++deterministicIdCounter}`;
 
 function globalSettings(overrides: Partial<GlobalThemeSettings>): GlobalThemeSettings {
   return {

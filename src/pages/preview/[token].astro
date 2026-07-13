@@ -1,0 +1,18 @@
+---
+import PlatformLayout from '../../layouts/PlatformLayout.astro';
+import StorefrontRenderer from '../../components/storefront/StorefrontRenderer.astro';
+import { getStore } from '../../lib/platform/store';
+import { getPreviewToken, getThemeRevision } from '../../lib/storefront/themeStore';
+const token = Astro.params.token ?? '';
+const preview = await getPreviewToken(token, Astro);
+const store = preview ? await getStore(preview.storeId, Astro) : null;
+const revision = preview ? await getThemeRevision(preview.storeId, preview.revisionId, Astro) : null;
+if (!preview || !store || !revision) Astro.response.status = 404;
+---
+<PlatformLayout title={store ? `Preview | ${store.name}` : 'Preview not found'}>
+  {preview && store && revision ? (
+    <StorefrontRenderer store={store} configuration={revision.configuration} preview />
+  ) : (
+    <main class="auth"><section class="panel stack"><div class="brand">White Label</div><h1>Preview unavailable</h1><p class="muted">This preview link has expired or does not exist.</p><a class="button" href="/">Return to White Label</a></section></main>
+  )}
+</PlatformLayout>

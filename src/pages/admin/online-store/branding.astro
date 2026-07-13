@@ -3,19 +3,52 @@ import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
 import Subnav from '../../../components/platform/Subnav.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
 import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
+import { getDraftRevision, saveDraft } from '../../../lib/storefront/themeStore';
 const value = await requireStoreMembership(Astro);
 if (!value) return Astro.redirect('/login');
 const { store, user, membership } = value;
+let draft = await getDraftRevision(store.id, Astro);
+let message = '';
+if (Astro.request.method === 'POST' && draft) {
+  const form = await Astro.request.formData();
+  const configuration = JSON.parse(JSON.stringify(draft.configuration));
+  configuration.globalSettings = {
+    ...configuration.globalSettings,
+    storeNameDisplay: String(form.get('storeNameDisplay') ?? configuration.globalSettings.storeNameDisplay),
+    logoText: String(form.get('logoText') ?? configuration.globalSettings.logoText),
+    primaryColor: String(form.get('primaryColor') ?? configuration.globalSettings.primaryColor),
+    secondaryColor: String(form.get('secondaryColor') ?? configuration.globalSettings.secondaryColor),
+    accentColor: String(form.get('accentColor') ?? configuration.globalSettings.accentColor),
+    backgroundColor: String(form.get('backgroundColor') ?? configuration.globalSettings.backgroundColor),
+    surfaceColor: String(form.get('surfaceColor') ?? configuration.globalSettings.surfaceColor),
+    textColor: String(form.get('textColor') ?? configuration.globalSettings.textColor),
+    mutedTextColor: String(form.get('mutedTextColor') ?? configuration.globalSettings.mutedTextColor),
+    borderColor: String(form.get('borderColor') ?? configuration.globalSettings.borderColor),
+  };
+  draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'branding.saved' }, Astro);
+  message = 'Branding draft saved.';
+}
+const settings = draft?.configuration.globalSettings;
 ---
-<MerchantAdminLayout title={`Branding | ${store.name}`} store={store} user={user} membership={membership} heading="Branding" description="Logo, colours and typography for this store.">
+<MerchantAdminLayout title={`Branding | ${store.name}`} store={store} user={user} membership={membership} heading="Branding" description="Store-wide visual identity for the selected template.">
   <Subnav items={merchantOnlineStoreNavigation} />
-  <section class="card">
-    <div class="grid">
-      <label class="field">Logo<input type="file" disabled /></label>
-      <label class="field">Primary colour<input type="color" value="#17202a" disabled /></label>
-      <label class="field">Typography<select disabled><option>System Sans</option></select></label>
-      <label class="field">Favicon<input type="file" disabled /></label>
-    </div>
-    <p class="notice" style="margin-top:16px">Brand fields are presented in the new platform UX. Saving will be connected to tenant storefront settings in the Store Builder persistence pass.</p>
-  </section>
+  {message && <p class="notice">{message}</p>}
+  {!settings ? <section class="empty">Select a template before editing branding.</section> : (
+    <form method="POST" class="card stack">
+      <div class="grid">
+        <label class="field">Store name display<input name="storeNameDisplay" value={settings.storeNameDisplay} /></label>
+        <label class="field">Logo text<input name="logoText" value={settings.logoText} maxlength="4" /></label>
+        <label class="field">Primary colour<input name="primaryColor" type="color" value={settings.primaryColor} /></label>
+        <label class="field">Secondary colour<input name="secondaryColor" type="color" value={settings.secondaryColor} /></label>
+        <label class="field">Accent colour<input name="accentColor" type="color" value={settings.accentColor} /></label>
+        <label class="field">Background<input name="backgroundColor" type="color" value={settings.backgroundColor} /></label>
+        <label class="field">Surface<input name="surfaceColor" type="color" value={settings.surfaceColor} /></label>
+        <label class="field">Text<input name="textColor" type="color" value={settings.textColor} /></label>
+        <label class="field">Muted text<input name="mutedTextColor" type="color" value={settings.mutedTextColor} /></label>
+        <label class="field">Border<input name="borderColor" type="color" value={settings.borderColor} /></label>
+      </div>
+      <p class="template-editor-note">Colour changes save to draft only. Publish from the visual editor when ready.</p>
+      <button>Save branding draft</button>
+    </form>
+  )}
 </MerchantAdminLayout>

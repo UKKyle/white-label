@@ -21,6 +21,8 @@ export const merchantNavigation: PlatformNavItem[] = [
 
 export const merchantOnlineStoreNavigation: PlatformNavItem[] = [
   { label: 'Overview', href: '/admin/online-store' },
+  { label: 'Templates', href: '/admin/online-store/templates' },
+  { label: 'Editor', href: '/admin/online-store/editor' },
   { label: 'Pages', href: '/admin/online-store/pages' },
   { label: 'Navigation', href: '/admin/online-store/navigation' },
   { label: 'Branding', href: '/admin/online-store/branding' },

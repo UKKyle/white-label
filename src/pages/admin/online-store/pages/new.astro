@@ -1,0 +1,18 @@
+---
+import MerchantAdminLayout from '../../../../layouts/MerchantAdminLayout.astro';
+import Subnav from '../../../../components/platform/Subnav.astro';
+import { requireStoreMembership } from '../../../../lib/platform/auth';
+import { merchantOnlineStoreNavigation } from '../../../../lib/platform/navigation';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+---
+<MerchantAdminLayout title={`New page | ${store.name}`} store={store} user={user} membership={membership} heading="Create page" description="Page creation will use the shared section editor and tenant draft revisions.">
+  <Subnav items={merchantOnlineStoreNavigation} />
+  <section class="card stack">
+    <label class="field">Page type<select disabled><option>Standard page</option><option>About</option><option>Contact</option><option>FAQ</option><option>Landing page</option><option>Policy page</option></select></label>
+    <label class="field">Title<input disabled placeholder="Page title" /></label>
+    <p class="notice">The foundation now lists and opens theme pages. Full page creation is deferred until the tenant page mutation workflow is hardened.</p>
+    <a class="button secondary" href="/admin/online-store/pages">Back to pages</a>
+  </section>
+</MerchantAdminLayout>

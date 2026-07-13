@@ -1,0 +1,24 @@
+---
+import MerchantAdminLayout from '../../../../layouts/MerchantAdminLayout.astro';
+import Subnav from '../../../../components/platform/Subnav.astro';
+import { requireStoreMembership } from '../../../../lib/platform/auth';
+import { merchantOnlineStoreNavigation } from '../../../../lib/platform/navigation';
+import { getDraftRevision } from '../../../../lib/storefront/themeStore';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+const draft = await getDraftRevision(store.id, Astro);
+const page = draft?.configuration.pages[Astro.params.pageId ?? ''];
+if (!page) Astro.response.status = 404;
+---
+<MerchantAdminLayout title={`${page?.title ?? 'Page not found'} | ${store.name}`} store={store} user={user} membership={membership} heading={page?.title ?? 'Page not found'} description="Page details and section structure.">
+  <Subnav items={merchantOnlineStoreNavigation} />
+  {page ? (
+    <section class="card">
+      <p><strong>Handle:</strong> {page.handle}</p>
+      <p><strong>Type:</strong> {page.pageType}</p>
+      <p><strong>Sections:</strong> {page.sections.length}</p>
+      <div style="margin-top:14px"><a class="button" href="/admin/online-store/editor">Edit in visual editor</a></div>
+    </section>
+  ) : <section class="empty">This page does not exist for the current store.</section>}
+</MerchantAdminLayout>

@@ -3,24 +3,31 @@ import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
 import Subnav from '../../../components/platform/Subnav.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
 import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
+import { getDraftRevision, getPublishedRevision, getStoreTheme, listThemeRevisions } from '../../../lib/storefront/themeStore';
 const value = await requireStoreMembership(Astro);
 if (!value) return Astro.redirect('/login');
 const { store, user, membership } = value;
+const theme = await getStoreTheme(store.id, Astro);
+const draft = await getDraftRevision(store.id, Astro);
+const published = await getPublishedRevision(store.id, Astro);
+const revisions = await listThemeRevisions(store.id, Astro);
 ---
-<MerchantAdminLayout title={`Online Store | ${store.name}`} store={store} user={user} membership={membership} heading="Online Store" description="Manage the storefront experience for this merchant.">
+<MerchantAdminLayout title={`Online Store | ${store.name}`} store={store} user={user} membership={membership} heading="Online Store" description="Select a template, edit the storefront, save drafts and publish when ready.">
   <Subnav items={merchantOnlineStoreNavigation} />
   <section class="grid">
-    <div class="card"><h2>Publishing status</h2><span class="badge warning">Draft</span><p class="muted">This store has not published a storefront configuration yet.</p></div>
-    <div class="card"><h2>Template</h2><span class="badge">Studio foundation</span><p class="muted">Template selection will remain store-scoped.</p></div>
-    <div class="card"><h2>Domain</h2><span class="badge">Not connected</span><p class="muted">Configure the domain workflow under settings.</p></div>
+    <div class="card"><h2>Selected template</h2><p class="metric">{theme?.name ?? 'None'}</p><p class="muted">{theme ? theme.templateKey : 'Choose a template to start.'}</p></div>
+    <div class="card"><h2>Draft status</h2><span class="badge warning">{draft ? `v${draft.version} saved` : 'No draft'}</span><p class="muted">{draft ? new Date(draft.createdAt).toLocaleString('en-GB') : 'Select a template to create the first draft.'}</p></div>
+    <div class="card"><h2>Published status</h2><span class:list={['badge', published && 'success']}>{published ? `v${published.version} live` : 'Unpublished'}</span><p class="muted">{published ? new Date(published.createdAt).toLocaleString('en-GB') : 'Public storefront remains disabled until publish.'}</p></div>
+    <div class="card"><h2>Revisions</h2><p class="metric">{revisions.length}</p><p class="muted">Recent versions retained for rollback.</p></div>
   </section>
   <section class="card" style="margin-top:16px">
-    <h2>Storefront setup</h2>
+    <h2>Storefront workflow</h2>
     <div class="grid">
+      <a class="button secondary" href="/admin/online-store/templates">Choose template</a>
+      <a class="button secondary" href="/admin/online-store/editor">Open visual editor</a>
       <a class="button secondary" href="/admin/online-store/pages">Manage pages</a>
-      <a class="button secondary" href="/admin/online-store/navigation">Manage navigation</a>
-      <a class="button secondary" href="/admin/online-store/branding">Manage branding</a>
-      <a class="button" href="/admin/settings/domains">Domains</a>
+      <a class="button secondary" href="/admin/online-store/navigation">Navigation</a>
+      <a class="button" href={`/store/${store.slug}`}>Open live store</a>
     </div>
   </section>
 </MerchantAdminLayout>

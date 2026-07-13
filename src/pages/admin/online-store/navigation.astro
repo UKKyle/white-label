@@ -3,14 +3,54 @@ import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
 import Subnav from '../../../components/platform/Subnav.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
 import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
+import { getDraftRevision, saveDraft } from '../../../lib/storefront/themeStore';
 const value = await requireStoreMembership(Astro);
 if (!value) return Astro.redirect('/login');
 const { store, user, membership } = value;
+let draft = await getDraftRevision(store.id, Astro);
+let message = '';
+if (Astro.request.method === 'POST' && draft) {
+  const form = await Astro.request.formData();
+  const configuration = JSON.parse(JSON.stringify(draft.configuration));
+  configuration.navigation.mainMenu = [0, 1, 2, 3].map((index) => ({
+    id: configuration.navigation.mainMenu[index]?.id ?? `main-${index}`,
+    label: String(form.get(`mainLabel${index}`) ?? '').trim(),
+    href: String(form.get(`mainHref${index}`) ?? '/'),
+    visible: Boolean(form.get(`mainVisible${index}`)),
+    order: index,
+  })).filter((item) => item.label);
+  configuration.navigation.footerMenu = [0, 1, 2, 3].map((index) => ({
+    id: configuration.navigation.footerMenu[index]?.id ?? `footer-${index}`,
+    label: String(form.get(`footerLabel${index}`) ?? '').trim(),
+    href: String(form.get(`footerHref${index}`) ?? '/'),
+    visible: Boolean(form.get(`footerVisible${index}`)),
+    order: index,
+  })).filter((item) => item.label);
+  draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'navigation.saved' }, Astro);
+  message = 'Navigation draft saved.';
+}
+const config = draft?.configuration;
 ---
-<MerchantAdminLayout title={`Navigation | ${store.name}`} store={store} user={user} membership={membership} heading="Navigation" description="Header and footer menus for this store.">
+<MerchantAdminLayout title={`Navigation | ${store.name}`} store={store} user={user} membership={membership} heading="Navigation" description="Manage tenant-scoped header and footer menus.">
   <Subnav items={merchantOnlineStoreNavigation} />
-  <section class="grid">
-    <div class="card"><h2>Header menu</h2><p class="muted">No menu items have been added yet.</p><button class="secondary" disabled>Add link</button></div>
-    <div class="card"><h2>Footer menu</h2><p class="muted">No footer groups have been added yet.</p><button class="secondary" disabled>Add group</button></div>
-  </section>
+  {message && <p class="notice">{message}</p>}
+  {!config ? <section class="empty">Select a template before editing navigation.</section> : (
+    <form method="POST" class="two-col">
+      <section class="card stack">
+        <h2>Main menu</h2>
+        {[0, 1, 2, 3].map((index) => {
+          const item = config.navigation.mainMenu[index];
+          return <div class="grid"><label class="field">Label<input name={`mainLabel${index}`} value={item?.label ?? ''} /></label><label class="field">Href<input name={`mainHref${index}`} value={item?.href ?? ''} /></label><label class="field">Visible<input name={`mainVisible${index}`} type="checkbox" checked={item?.visible ?? true} /></label></div>;
+        })}
+      </section>
+      <section class="card stack">
+        <h2>Footer menu</h2>
+        {[0, 1, 2, 3].map((index) => {
+          const item = config.navigation.footerMenu[index];
+          return <div class="grid"><label class="field">Label<input name={`footerLabel${index}`} value={item?.label ?? ''} /></label><label class="field">Href<input name={`footerHref${index}`} value={item?.href ?? ''} /></label><label class="field">Visible<input name={`footerVisible${index}`} type="checkbox" checked={item?.visible ?? true} /></label></div>;
+        })}
+        <button>Save navigation</button>
+      </section>
+    </form>
+  )}
 </MerchantAdminLayout>

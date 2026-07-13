@@ -1,0 +1,54 @@
+---
+import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
+import Subnav from '../../../components/platform/Subnav.astro';
+import StorefrontRenderer from '../../../components/storefront/StorefrontRenderer.astro';
+import { requireStoreMembership } from '../../../lib/platform/auth';
+import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
+import { listStorefrontTemplates, selectTemplateForStore } from '../../../lib/storefront/themeStore';
+import { createDefaultConfiguration } from '../../../lib/storefront/templates';
+import type { TemplateKey } from '../../../types/storefront';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+let error = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const templateKey = String(form.get('templateKey') ?? '') as TemplateKey;
+  try {
+    await selectTemplateForStore({ storeId: store.id, userId: user.id, role: membership.role, templateKey }, Astro);
+    return Astro.redirect('/admin/online-store/editor');
+  } catch (caught) {
+    error = caught instanceof Error ? caught.message : 'Template could not be selected.';
+  }
+}
+const templates = listStorefrontTemplates();
+---
+<MerchantAdminLayout title={`Templates | ${store.name}`} store={store} user={user} membership={membership} heading="Templates" description="Choose one of exactly three fixed base templates.">
+  <Subnav items={merchantOnlineStoreNavigation} />
+  {error && <p class="error">{error}</p>}
+  <section class="template-grid">
+    {templates.map((template) => (
+      <article class="card stack">
+        <div class="template-preview">
+          <span></span><span></span><span></span>
+        </div>
+        <div>
+          <h2>{template.name}</h2>
+          <p class="muted">{template.description}</p>
+        </div>
+        <p class="template-editor-note"><strong>Best for:</strong> {template.businessTypes.join(', ')}</p>
+        <ul class="checklist">{template.characteristics.map((item) => <li><span class="dot done"></span>{item}</li>)}</ul>
+        <details>
+          <summary class="button secondary">Preview template</summary>
+          <div class="canvas-frame" style="margin-top:12px">
+            <div class="canvas-device mobile"><StorefrontRenderer store={store} configuration={createDefaultConfiguration(template.key)} preview /></div>
+          </div>
+        </details>
+        <form method="POST">
+          <input type="hidden" name="templateKey" value={template.key} />
+          <button>Select {template.name}</button>
+        </form>
+      </article>
+    ))}
+  </section>
+</MerchantAdminLayout>

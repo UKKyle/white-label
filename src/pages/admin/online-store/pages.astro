@@ -3,12 +3,20 @@ import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
 import Subnav from '../../../components/platform/Subnav.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
 import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
+import { getDraftRevision } from '../../../lib/storefront/themeStore';
 const value = await requireStoreMembership(Astro);
 if (!value) return Astro.redirect('/login');
 const { store, user, membership } = value;
+const draft = await getDraftRevision(store.id, Astro);
+const pages = draft ? Object.values(draft.configuration.pages) : [];
 ---
-<MerchantAdminLayout title={`Pages | ${store.name}`} store={store} user={user} membership={membership} heading="Pages" description="Structured storefront pages for this store.">
+<MerchantAdminLayout title={`Pages | ${store.name}`} store={store} user={user} membership={membership} heading="Pages" description="Theme pages managed through the section-based editor foundation.">
   <Subnav items={merchantOnlineStoreNavigation} />
-  <section class="toolbar"><span class="badge">0 pages</span><button class="secondary" disabled>Create page</button></section>
-  <section class="table-wrap"><table><thead><tr><th>Page</th><th>Type</th><th>Status</th><th>Updated</th><th>Action</th></tr></thead><tbody><tr><td colspan="5"><div class="empty">No CMS pages are configured yet. Homepage sections and policy pages will appear here once the tenant page model is wired.</div></td></tr></tbody></table></section>
+  <section class="toolbar"><span class="badge">{pages.length} page foundations</span><a class="button secondary" href="/admin/online-store/pages/new">Create page</a></section>
+  <section class="table-wrap">
+    <table>
+      <thead><tr><th>Page</th><th>Type</th><th>Handle</th><th>Sections</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody>{pages.length ? pages.map((page) => <tr><td>{page.title}</td><td>{page.pageType}</td><td>{page.handle}</td><td>{page.sections.length}</td><td><span class="badge">{page.status}</span></td><td><a class="button secondary" href={`/admin/online-store/pages/${page.id}`}>Open</a></td></tr>) : <tr><td colspan="6"><div class="empty">Choose a template to create the first page definitions.</div></td></tr>}</tbody>
+    </table>
+  </section>
 </MerchantAdminLayout>

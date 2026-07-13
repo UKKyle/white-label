@@ -2,6 +2,7 @@
 import OwnerAdminLayout from '../../../layouts/OwnerAdminLayout.astro';
 import { requirePlatformOwner } from '../../../lib/platform/auth';
 import { getStore, getUserById, listAuditLogs, listStoreMemberships, updateStoreStatus } from '../../../lib/platform/store';
+import { getDraftRevision, getPublishedRevision, getStoreTheme } from '../../../lib/storefront/themeStore';
 const owner = await requirePlatformOwner(Astro);
 if (!owner) return Astro.redirect('/owner/login');
 const storeId = Astro.params.storeId ?? '';
@@ -20,6 +21,9 @@ if (!store) {
 const storeOwner = store ? await getUserById(store.ownerUserId, Astro) : null;
 const memberships = store ? await listStoreMemberships(store.id, Astro) : [];
 const audits = (await listAuditLogs(Astro, 50)).filter((event) => event.storeId === storeId).slice(0, 10);
+const theme = store ? await getStoreTheme(store.id, Astro) : null;
+const draft = store ? await getDraftRevision(store.id, Astro) : null;
+const published = store ? await getPublishedRevision(store.id, Astro) : null;
 ---
 <OwnerAdminLayout title="Store detail | White Label" heading={store?.name ?? 'Store not found'} description={store ? 'Store summary, owner, status and platform controls.' : 'The requested store does not exist.'}>
   {!store ? (
@@ -31,6 +35,11 @@ const audits = (await listAuditLogs(Astro, 50)).filter((event) => event.storeId 
         <div class="card"><p class="muted">Billing</p><p class="metric">{store.billingStatus.replaceAll('_', ' ')}</p></div>
         <div class="card"><p class="muted">Plan</p><p class="metric">{store.plan}</p></div>
         <div class="card"><p class="muted">Owner</p><p class="metric" style="font-size:20px">{storeOwner?.email ?? store.contactEmail}</p></div>
+      </section>
+      <section class="grid" style="margin-top:16px">
+        <div class="card"><h2>Storefront template</h2><p class="metric" style="font-size:22px">{theme?.name ?? 'Not selected'}</p><p class="muted">{theme?.templateKey ?? 'No theme yet'}</p></div>
+        <div class="card"><h2>Draft</h2><span class="badge warning">{draft ? `v${draft.version}` : 'No draft'}</span><p class="muted">{draft ? new Date(draft.createdAt).toLocaleString('en-GB') : 'Not started'}</p></div>
+        <div class="card"><h2>Published</h2><span class:list={['badge', published && 'success']}>{published ? `v${published.version}` : 'Unpublished'}</span><p class="muted">{published ? new Date(published.createdAt).toLocaleString('en-GB') : 'No live storefront'}</p></div>
       </section>
       <section class="two-col" style="margin-top:16px">
         <div class="card">

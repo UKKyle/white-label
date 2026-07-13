@@ -1,0 +1,25 @@
+---
+import PlatformLayout from '../../layouts/PlatformLayout.astro';
+import StorefrontRenderer from '../../components/storefront/StorefrontRenderer.astro';
+import { getStoreBySlug } from '../../lib/platform/store';
+import { getPublishedRevision } from '../../lib/storefront/themeStore';
+const slug = Astro.params.slug ?? '';
+const store = await getStoreBySlug(slug, Astro);
+const published = store ? await getPublishedRevision(store.id, Astro) : null;
+if (!store) Astro.response.status = 404;
+if (store && !published) Astro.response.status = 503;
+---
+<PlatformLayout title={store ? store.name : 'Store not found'}>
+  {store && published ? (
+    <StorefrontRenderer store={store} configuration={published.configuration} />
+  ) : (
+    <main class="auth">
+      <section class="panel stack">
+        <div class="brand">White Label Storefront</div>
+        <h1>{store ? 'Storefront not published yet' : 'Store not found'}</h1>
+        <p class="muted">{store ? 'This merchant has not published a storefront configuration.' : 'No store exists for this slug.'}</p>
+        <a class="button" href="/">Return to White Label</a>
+      </section>
+    </main>
+  )}
+</PlatformLayout>

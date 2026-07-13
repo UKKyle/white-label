@@ -1,0 +1,185 @@
+---
+import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
+import Subnav from '../../../components/platform/Subnav.astro';
+import StorefrontRenderer from '../../../components/storefront/StorefrontRenderer.astro';
+import { requireStoreMembership } from '../../../lib/platform/auth';
+import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
+import { addSection, createPreviewToken, duplicateSection, getDraftRevision, getPublishedRevision, getStoreTheme, listThemeRevisions, moveSection, publishDraft, rollbackPublishedRevision, saveDraft, selectTemplateForStore } from '../../../lib/storefront/themeStore';
+import { sectionLibrary } from '../../../lib/storefront/templates';
+import type { DeviceMode, ThemeConfiguration } from '../../../types/storefront';
+
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+let theme = await getStoreTheme(store.id, Astro);
+let draft = await getDraftRevision(store.id, Astro);
+let message = '';
+let error = '';
+let previewHref = '';
+
+if (!theme || !draft) {
+  const created = await selectTemplateForStore({ storeId: store.id, userId: user.id, role: membership.role, templateKey: 'studio' }, Astro);
+  theme = created.theme;
+  draft = created.revision;
+}
+
+function cloneConfig(configuration: ThemeConfiguration) {
+  return JSON.parse(JSON.stringify(configuration)) as ThemeConfiguration;
+}
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') ?? '');
+  try {
+    let configuration = cloneConfig(draft.configuration);
+    const pageId = String(form.get('pageId') ?? 'home');
+    const sectionId = String(form.get('sectionId') ?? '');
+    if (action === 'global') {
+      configuration.globalSettings = {
+        ...configuration.globalSettings,
+        storeNameDisplay: String(form.get('storeNameDisplay') ?? configuration.globalSettings.storeNameDisplay),
+        logoText: String(form.get('logoText') ?? configuration.globalSettings.logoText),
+        primaryColor: String(form.get('primaryColor') ?? configuration.globalSettings.primaryColor),
+        accentColor: String(form.get('accentColor') ?? configuration.globalSettings.accentColor),
+        backgroundColor: String(form.get('backgroundColor') ?? configuration.globalSettings.backgroundColor),
+        headingFont: String(form.get('headingFont') ?? configuration.globalSettings.headingFont),
+        buttonRadius: Number(form.get('buttonRadius') ?? configuration.globalSettings.buttonRadius),
+        sectionSpacing: Number(form.get('sectionSpacing') ?? configuration.globalSettings.sectionSpacing),
+      };
+      draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'global.settings' }, Astro);
+      message = 'Draft global styles saved.';
+    }
+    if (action === 'section-settings') {
+      const section = configuration.pages[pageId]?.sections.find((item) => item.id === sectionId);
+      if (section) {
+        section.label = String(form.get('label') ?? section.label);
+        section.settings.heading = String(form.get('heading') ?? section.settings.heading ?? '');
+        section.settings.body = String(form.get('body') ?? section.settings.body ?? '');
+        section.settings.text = String(form.get('text') ?? section.settings.text ?? '');
+      }
+      draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.settings' }, Astro);
+      message = 'Section settings saved.';
+    }
+    if (action === 'add-section') {
+      configuration = addSection(configuration, pageId, String(form.get('sectionType') ?? 'rich_text'));
+      draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.added' }, Astro);
+      message = 'Section added.';
+    }
+    if (action === 'duplicate-section') {
+      configuration = duplicateSection(configuration, pageId, sectionId);
+      draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.duplicated' }, Astro);
+      message = 'Section duplicated.';
+    }
+    if (action === 'move-up' || action === 'move-down') {
+      configuration = moveSection(configuration, pageId, sectionId, action === 'move-up' ? 'up' : 'down');
+      draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.reordered' }, Astro);
+      message = 'Section order saved.';
+    }
+    if (action === 'toggle-section') {
+      const section = configuration.pages[pageId]?.sections.find((item) => item.id === sectionId);
+      if (section) section.visible = !section.visible;
+      draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.visibility' }, Astro);
+      message = 'Section visibility saved.';
+    }
+    if (action === 'preview') {
+      const token = await createPreviewToken({ storeId: store.id, userId: user.id, role: membership.role }, Astro);
+      previewHref = `/preview/${token.token}`;
+      message = 'Preview link created for the latest saved draft.';
+    }
+    if (action === 'publish') {
+      draft = await publishDraft({ storeId: store.id, userId: user.id, role: membership.role }, Astro);
+      message = 'Draft published.';
+    }
+    if (action === 'rollback') {
+      const revisionId = String(form.get('revisionId') ?? '');
+      draft = await rollbackPublishedRevision({ storeId: store.id, userId: user.id, role: membership.role, revisionId }, Astro);
+      message = 'Published revision restored.';
+    }
+  } catch (caught) {
+    error = caught instanceof Error ? caught.message : 'Theme action failed.';
+  }
+}
+
+theme = await getStoreTheme(store.id, Astro);
+draft = await getDraftRevision(store.id, Astro);
+const published = await getPublishedRevision(store.id, Astro);
+const revisions = await listThemeRevisions(store.id, Astro);
+const configuration = draft!.configuration;
+const device = (Astro.url.searchParams.get('device') ?? 'desktop') as DeviceMode;
+const page = configuration.pages.home;
+const selectedSection = page.sections[0];
+---
+<MerchantAdminLayout title={`Visual editor | ${store.name}`} store={store} user={user} membership={membership} heading="Visual editor" description="Edit the draft storefront. Saving does not publish until you choose Publish.">
+  <Subnav items={merchantOnlineStoreNavigation} />
+  {message && <p class="notice">{message} {previewHref && <a href={previewHref}>Open preview</a>}</p>}
+  {error && <p class="error">{error}</p>}
+  <section class="toolbar">
+    <div class="tabs">
+      {(['desktop', 'tablet', 'mobile'] as DeviceMode[]).map((mode) => <a class:list={['tab', device === mode && 'is-active']} href={`/admin/online-store/editor?device=${mode}`}>{mode}</a>)}
+    </div>
+    <form method="POST" class="split">
+      <button class="secondary" name="action" value="preview">Create preview</button>
+      <button name="action" value="publish">Publish draft</button>
+    </form>
+  </section>
+  <section class="editor-shell">
+    <aside class="card editor-panel">
+      <h2>Page structure</h2>
+      <label class="field">Current page<select><option>Homepage</option><option>Collection</option><option>Product detail</option><option>Cart</option></select></label>
+      <div class="stack">
+        {page.sections.map((section) => (
+          <div class="section-row">
+            <strong>{section.label}</strong>
+            <span class="muted">{section.type} · {section.visible ? 'visible' : 'hidden'}</span>
+            <div class="section-actions">
+              <form method="POST"><input type="hidden" name="sectionId" value={section.id} /><button class="secondary" name="action" value="move-up">Up</button></form>
+              <form method="POST"><input type="hidden" name="sectionId" value={section.id} /><button class="secondary" name="action" value="move-down">Down</button></form>
+              <form method="POST"><input type="hidden" name="sectionId" value={section.id} /><button class="secondary" name="action" value="toggle-section">{section.visible ? 'Hide' : 'Show'}</button></form>
+              <form method="POST"><input type="hidden" name="sectionId" value={section.id} /><button class="secondary" name="action" value="duplicate-section">Duplicate</button></form>
+            </div>
+          </div>
+        ))}
+      </div>
+      <form method="POST" class="stack" style="margin-top:14px">
+        <label class="field">Add section<select name="sectionType">{sectionLibrary.map((type) => <option value={type}>{type.replaceAll('_', ' ')}</option>)}</select></label>
+        <button name="action" value="add-section">Add section</button>
+      </form>
+    </aside>
+    <div class="canvas-frame">
+      <div class:list={['canvas-device', device]}>
+        <StorefrontRenderer store={store} configuration={configuration} preview />
+      </div>
+    </div>
+    <aside class="card editor-panel">
+      <h2>Inspector</h2>
+      <form method="POST" class="stack">
+        <input type="hidden" name="sectionId" value={selectedSection.id} />
+        <label class="field">Section label<input name="label" value={selectedSection.label} /></label>
+        <label class="field">Heading<input name="heading" value={String(selectedSection.settings.heading ?? '')} /></label>
+        <label class="field">Body<textarea name="body">{String(selectedSection.settings.body ?? '')}</textarea></label>
+        <label class="field">Announcement text<input name="text" value={String(selectedSection.settings.text ?? '')} /></label>
+        <button name="action" value="section-settings">Save selected section</button>
+      </form>
+      <hr />
+      <h2>Global design</h2>
+      <form method="POST" class="stack">
+        <label class="field">Store name<input name="storeNameDisplay" value={configuration.globalSettings.storeNameDisplay} /></label>
+        <label class="field">Logo text<input name="logoText" value={configuration.globalSettings.logoText} maxlength="4" /></label>
+        <label class="field">Primary colour<input name="primaryColor" type="color" value={configuration.globalSettings.primaryColor} /></label>
+        <label class="field">Accent colour<input name="accentColor" type="color" value={configuration.globalSettings.accentColor} /></label>
+        <label class="field">Background<input name="backgroundColor" type="color" value={configuration.globalSettings.backgroundColor} /></label>
+        <label class="field">Heading font<select name="headingFont"><option>Inter</option><option>Georgia</option><option>Arial</option><option>Verdana</option></select></label>
+        <label class="field">Button radius<input name="buttonRadius" type="range" min="0" max="28" value={configuration.globalSettings.buttonRadius} /></label>
+        <label class="field">Section spacing<input name="sectionSpacing" type="range" min="32" max="120" value={configuration.globalSettings.sectionSpacing} /></label>
+        <button name="action" value="global">Save global design</button>
+      </form>
+      <hr />
+      <h2>Revisions</h2>
+      <p class="muted">Draft v{draft?.version}. Published {published ? `v${published.version}` : 'none'}.</p>
+      <form method="POST" class="stack">
+        <label class="field">Rollback to published revision<select name="revisionId">{revisions.filter((revision) => revision.status === 'published').map((revision) => <option value={revision.id}>v{revision.version} · {new Date(revision.createdAt).toLocaleString('en-GB')}</option>)}</select></label>
+        <button class="secondary" name="action" value="rollback">Rollback</button>
+      </form>
+    </aside>
+  </section>
+</MerchantAdminLayout>

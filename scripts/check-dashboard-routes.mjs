@@ -9,7 +9,11 @@ const requiredRoutes = [
   'src/pages/admin/products.astro',
   'src/pages/admin/customers/index.astro',
   'src/pages/admin/online-store/index.astro',
+  'src/pages/admin/online-store/templates.astro',
+  'src/pages/admin/online-store/editor.astro',
   'src/pages/admin/online-store/pages.astro',
+  'src/pages/admin/online-store/pages/new.astro',
+  'src/pages/admin/online-store/pages/[pageId].astro',
   'src/pages/admin/online-store/navigation.astro',
   'src/pages/admin/online-store/branding.astro',
   'src/pages/admin/pos.astro',
@@ -32,6 +36,8 @@ const requiredRoutes = [
   'src/pages/owner/audit.astro',
   'src/pages/owner/platform-settings.astro',
   'src/pages/owner/[...path].astro',
+  'src/pages/preview/[token].astro',
+  'src/pages/store/[slug].astro',
 ];
 
 const forbiddenDashboardPatterns = [

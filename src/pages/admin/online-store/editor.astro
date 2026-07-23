@@ -105,17 +105,23 @@ draft = await getDraftRevision(store.id, Astro);
 const published = await getPublishedRevision(store.id, Astro);
 const revisions = await listThemeRevisions(store.id, Astro);
 const configuration = draft!.configuration;
-const device = (Astro.url.searchParams.get('device') ?? 'desktop') as DeviceMode;
-const page = configuration.pages.home;
-const selectedSection = page.sections[0];
+const requestedDevice = Astro.url.searchParams.get('device');
+const device: DeviceMode = requestedDevice === 'tablet' || requestedDevice === 'mobile' ? requestedDevice : 'desktop';
+const requestedPage = Astro.url.searchParams.get('page') ?? 'home';
+const pageId = configuration.pages[requestedPage] ? requestedPage : 'home';
+const page = configuration.pages[pageId];
+const requestedSection = Astro.url.searchParams.get('section');
+const selectedSection = page.sections.find((section) => section.id === requestedSection) ?? page.sections[0];
+const editorHref = (sectionId = selectedSection?.id, selectedDevice = device, selectedPage = pageId) => `/admin/online-store/editor?device=${selectedDevice}&page=${selectedPage}${sectionId ? `&section=${sectionId}` : ''}`;
 ---
 <MerchantAdminLayout title={`Visual editor | ${store.name}`} store={store} user={user} membership={membership} heading="Visual editor" description="Edit the draft storefront. Saving does not publish until you choose Publish.">
   <Subnav items={merchantOnlineStoreNavigation} />
   {message && <p class="notice">{message} {previewHref && <a href={previewHref}>Open preview</a>}</p>}
   {error && <p class="error">{error}</p>}
-  <section class="toolbar">
-    <div class="tabs">
-      {(['desktop', 'tablet', 'mobile'] as DeviceMode[]).map((mode) => <a class:list={['tab', device === mode && 'is-active']} href={`/admin/online-store/editor?device=${mode}`}>{mode}</a>)}
+  <section class="editor-toolbar">
+    <div class="editor-context"><strong>Online store / Editor</strong><small>Draft v{draft?.version} · {published ? `Live v${published.version}` : 'Not published'}</small></div>
+    <div class="device-switcher" aria-label="Preview device">
+      {(['desktop', 'tablet', 'mobile'] as DeviceMode[]).map((mode) => <a class:list={['device-button', device === mode && 'is-active']} href={editorHref(selectedSection?.id, mode)}>{mode}</a>)}
     </div>
     <form method="POST" class="split">
       <button class="secondary" name="action" value="preview">Create preview</button>
@@ -123,42 +129,45 @@ const selectedSection = page.sections[0];
     </form>
   </section>
   <section class="editor-shell">
-    <aside class="card editor-panel">
-      <h2>Page structure</h2>
-      <label class="field">Current page<select><option>Homepage</option><option>Collection</option><option>Product detail</option><option>Cart</option></select></label>
-      <div class="stack">
+    <aside class="editor-panel structure-panel">
+      <div class="panel-heading"><div><p>Storefront</p><h2>Page structure</h2></div><span class="badge">{page.sections.length}</span></div>
+      <form method="GET" class="field compact-field"><input type="hidden" name="device" value={device} /><label>Current page<select name="page" onchange="this.form.submit()">{Object.values(configuration.pages).map((item) => <option value={item.id} selected={item.id === pageId}>{item.title || item.id}</option>)}</select></label></form>
+      <div class="section-list">
         {page.sections.map((section) => (
-          <div class="section-row">
-            <strong>{section.label}</strong>
+          <div class:list={['section-row', section.id === selectedSection?.id && 'is-selected']}>
+            <a class="section-select" href={editorHref(section.id)}><strong>{section.label}</strong>
             <span class="muted">{section.type} · {section.visible ? 'visible' : 'hidden'}</span>
-            <div class="section-actions">
-              <form method="POST"><input type="hidden" name="sectionId" value={section.id} /><button class="secondary" name="action" value="move-up">Up</button></form>
-              <form method="POST"><input type="hidden" name="sectionId" value={section.id} /><button class="secondary" name="action" value="move-down">Down</button></form>
-              <form method="POST"><input type="hidden" name="sectionId" value={section.id} /><button class="secondary" name="action" value="toggle-section">{section.visible ? 'Hide' : 'Show'}</button></form>
-              <form method="POST"><input type="hidden" name="sectionId" value={section.id} /><button class="secondary" name="action" value="duplicate-section">Duplicate</button></form>
+            </a><div class="section-actions">
+              <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="move-up" aria-label={`Move ${section.label} up`} title="Move up">↑</button></form>
+              <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="move-down" aria-label={`Move ${section.label} down`} title="Move down">↓</button></form>
+              <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="toggle-section" aria-label={`${section.visible ? 'Hide' : 'Show'} ${section.label}`} title={section.visible ? 'Hide section' : 'Show section'}>{section.visible ? '◉' : '○'}</button></form>
+              <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="duplicate-section" aria-label={`Duplicate ${section.label}`} title="Duplicate section">⧉</button></form>
             </div>
           </div>
         ))}
       </div>
-      <form method="POST" class="stack" style="margin-top:14px">
+      <form method="POST" class="add-section-row">
+        <input type="hidden" name="pageId" value={pageId} />
         <label class="field">Add section<select name="sectionType">{sectionLibrary.map((type) => <option value={type}>{type.replaceAll('_', ' ')}</option>)}</select></label>
         <button name="action" value="add-section">Add section</button>
       </form>
     </aside>
-    <div class="canvas-frame">
+    <div class="preview-workspace">
+      <div class="preview-label"><span>Storefront preview</span><span>{device}</span></div>
       <div class:list={['canvas-device', device]}>
-        <StorefrontRenderer store={store} configuration={configuration} preview />
+        <StorefrontRenderer store={store} configuration={configuration} pageId={pageId} preview editor selectedSectionId={selectedSection?.id} />
       </div>
     </div>
-    <aside class="card editor-panel">
-      <h2>Inspector</h2>
+    <aside class="editor-panel inspector-panel">
+      <div class="panel-heading"><div><p>Inspector</p><h2>{selectedSection.label}</h2></div></div>
+      <div class="inspector-tabs"><span class="is-active">Section</span><span>Design below</span></div>
       <form method="POST" class="stack">
-        <input type="hidden" name="sectionId" value={selectedSection.id} />
+        <input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={selectedSection.id} />
         <label class="field">Section label<input name="label" value={selectedSection.label} /></label>
         <label class="field">Heading<input name="heading" value={String(selectedSection.settings.heading ?? '')} /></label>
         <label class="field">Body<textarea name="body">{String(selectedSection.settings.body ?? '')}</textarea></label>
         <label class="field">Announcement text<input name="text" value={String(selectedSection.settings.text ?? '')} /></label>
-        <button name="action" value="section-settings">Save selected section</button>
+        <button name="action" value="section-settings">Save changes</button>
       </form>
       <hr />
       <h2>Global design</h2>

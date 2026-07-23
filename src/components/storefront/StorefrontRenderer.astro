@@ -2,11 +2,13 @@
 import type { Store } from '../../types/platform';
 import type { PageConfiguration, ThemeConfiguration } from '../../types/storefront';
 
-const { store, configuration, pageId = 'home', preview = false } = Astro.props as {
+const { store, configuration, pageId = 'home', preview = false, selectedSectionId, editor = false } = Astro.props as {
   store: Store;
   configuration: ThemeConfiguration;
   pageId?: string;
   preview?: boolean;
+  selectedSectionId?: string;
+  editor?: boolean;
 };
 const page: PageConfiguration = configuration.pages[pageId] ?? configuration.pages.home;
 const settings = configuration.globalSettings;
@@ -26,7 +28,7 @@ const footer = [...configuration.navigation.footerMenu].filter((item) => item.vi
   </header>
   <main>
     {sections.map((section) => (
-      <section class:list={['sf-section', `sf-${section.type}`]} data-section-id={section.id}>
+      <section class:list={['sf-section', `sf-${section.type}`, editor && 'is-editor-section', selectedSectionId === section.id && 'is-editor-selected']} data-section-id={section.id}>
         {section.type === 'announcement' && <p class="sf-announcement">{String(section.settings.text ?? 'Announcement')}</p>}
         {section.type === 'header' && null}
         {section.type === 'hero' && (

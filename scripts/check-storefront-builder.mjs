@@ -7,6 +7,9 @@ const renderer = readFileSync('src/components/storefront/StorefrontRenderer.astr
 const links = readFileSync('src/lib/storefront/links.ts', 'utf8');
 const pageCreate = readFileSync('src/pages/admin/online-store/pages/new.astro', 'utf8');
 const navigation = readFileSync('src/pages/admin/online-store/navigation.astro', 'utf8');
+const catalogue = readFileSync('src/lib/storefront/catalogStore.ts', 'utf8');
+const assets = readFileSync('src/lib/storefront/assetStore.ts', 'utf8');
+const assetRoute = readFileSync('src/pages/store-assets/[slug]/[assetId].ts', 'utf8');
 
 const requiredTemplates = ["key: 'editorial'", "key: 'commerce'", "key: 'studio'"];
 for (const marker of requiredTemplates) {
@@ -16,13 +19,16 @@ for (const marker of requiredTemplates) {
 const templateKeyMatches = templates.match(/key: '(editorial|commerce|studio)'/g) ?? [];
 if (templateKeyMatches.length !== 3) throw new Error(`Expected exactly three template manifests, found ${templateKeyMatches.length}.`);
 
-for (const marker of ['storeId', 'draftRevisionId', 'publishedRevisionId', 'validateThemeConfiguration', 'createPreviewToken', 'publishDraft', 'rollbackPublishedRevision']) {
+for (const marker of ['storeId', 'draftRevisionId', 'publishedRevisionId', 'validateThemeConfiguration', 'createPreviewToken', 'publishDraft', 'rollbackPublishedRevision', 'duplicatePage', 'deletePage', 'missingAssets', 'missingProducts']) {
   if (!themeStore.includes(marker)) throw new Error(`Theme store missing ${marker}`);
 }
 
 for (const marker of ['Page structure', 'canvas-device', 'Inspector', 'Create preview', 'Publish draft']) {
   const replacement = marker === 'Create preview' ? 'Preview draft' : marker === 'Publish draft' ? 'Publish changes' : marker;
   if (!editor.includes(marker) && !editor.includes(replacement)) throw new Error(`Editor missing ${marker}`);
+}
+for (const marker of ['undoDraft', 'redoDraft', 'pasteSection', 'data-copy-section', 'upload-asset', 'productIds', 'data-inspector-form']) {
+  if (!editor.includes(marker)) throw new Error(`Editor interaction workflow missing ${marker}`);
 }
 
 for (const marker of ['resolveStorefrontHref', 'encodeURIComponent(store.slug)', 'homeHref']) {
@@ -34,5 +40,12 @@ for (const marker of ['normaliseStorefrontPath', 'resolveStorefrontHref', 'resol
 if (templates.includes('/store/demo')) throw new Error('Template defaults contain a hard-coded demo tenant route.');
 if (!pageCreate.includes('createPage') || pageCreate.includes('disabled placeholder')) throw new Error('Page creation workflow is not active.');
 if (navigation.includes('name={`mainHref${index}`} value=')) throw new Error('Navigation still exposes an uncontrolled raw internal path field.');
+for (const [source, label] of [[catalogue, 'catalogue'], [assets, 'asset library']]) {
+  for (const marker of ['storeId', 'key(storeId', '.storeId === storeId']) {
+    if (!source.includes(marker)) throw new Error(`Tenant-scoped ${label} missing ${marker}`);
+  }
+}
+if (!renderer.includes('listCatalogProducts(store.id') || renderer.includes('Preview product')) throw new Error('Storefront product sections are not backed by the tenant catalogue.');
+if (!assetRoute.includes('getStoreBySlug') || !assetRoute.includes('getStoreAsset(store.id')) throw new Error('Asset delivery route is not bound to the resolved tenant.');
 
 console.log('Storefront builder audit passed.');

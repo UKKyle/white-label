@@ -6,17 +6,10 @@ if (!value) return Astro.redirect('/login');
 const { store, user, membership } = value;
 ---
 <MerchantAdminLayout title={`Orders | ${store.name}`} store={store} user={user} membership={membership} heading="Orders" description="Manage orders for the active store only.">
-  <section class="toolbar">
-    <input class="input" type="search" placeholder="Search orders" aria-label="Search orders" style="max-width:320px" />
-    <div class="split">
-      <select class="input" aria-label="Order status"><option>All statuses</option><option>Open</option><option>Fulfilled</option><option>Cancelled</option></select>
-      <select class="input" aria-label="Payment status"><option>All payments</option><option>Paid</option><option>Pending</option><option>Failed</option></select>
-    </div>
-  </section>
-  <section class="table-wrap">
-    <table>
-      <thead><tr><th>Order</th><th>Customer</th><th>Fulfilment</th><th>Payment</th><th>Total</th><th>Date</th><th>Action</th></tr></thead>
-      <tbody><tr><td colspan="7"><div class="empty">No store-scoped orders exist yet. Orders created through the future tenant storefront will appear here.</div></td></tr></tbody>
-    </table>
+  <section class="empty-state">
+    <span class="eyebrow">No orders yet</span>
+    <h2>Your first orders will appear here</h2>
+    <p>Once customers place orders through this store, you’ll be able to review payment, fulfilment, totals and customer details from this page.</p>
+    <a class="button secondary" href={`/store/${store.slug}`} target="_blank">View storefront</a>
   </section>
 </MerchantAdminLayout>

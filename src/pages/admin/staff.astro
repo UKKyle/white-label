@@ -11,7 +11,7 @@ const rows = await Promise.all(memberships.map(async (item) => ({ membership: it
 <MerchantAdminLayout title={`Staff | ${store.name}`} store={store} user={user} membership={membership} heading="Staff" description="Manage people with access to this store.">
   <section class="toolbar">
     <span class="badge">{rows.length} active member{rows.length === 1 ? '' : 's'}</span>
-    <button class="secondary" type="button" disabled>Invite staff</button>
+    <span class="muted">Access changes are managed by the platform owner.</span>
   </section>
   <section class="table-wrap">
     <table>

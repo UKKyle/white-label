@@ -1,0 +1,31 @@
+---
+import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
+import Icon from '../../../components/platform/Icon.astro';
+import { requireStoreMembership } from '../../../lib/platform/auth';
+import { getCatalogProduct, updateCatalogProduct } from '../../../lib/storefront/catalogStore';
+import { listStoreAssets } from '../../../lib/storefront/assetStore';
+const value = await requireStoreMembership(Astro);
+if (!value) return Astro.redirect('/login');
+const { store, user, membership } = value;
+const productId = Astro.params.productId ?? '';
+let product = await getCatalogProduct(store.id, productId, Astro);
+let message = '';
+let error = '';
+if (Astro.request.method === 'POST' && product) {
+  try {
+    const form = await Astro.request.formData();
+    product = await updateCatalogProduct(store.id, productId, { name: String(form.get('name') ?? ''), slug: String(form.get('slug') ?? ''), description: String(form.get('description') ?? ''), price: String(form.get('price') ?? ''), inventory: String(form.get('inventory') ?? ''), category: String(form.get('category') ?? ''), status: String(form.get('status') ?? ''), imageAssetId: String(form.get('imageAssetId') ?? '') }, Astro);
+    message = 'Product saved.';
+  } catch (caught) { error = caught instanceof Error ? caught.message : 'Product could not be saved.'; }
+}
+if (!product) Astro.response.status = 404;
+const assets = await listStoreAssets(store.id, Astro);
+---
+<MerchantAdminLayout title={`${product?.name ?? 'Product'} | ${store.name}`} store={store} user={user} membership={membership} heading={product?.name ?? 'Product not found'} description="Edit product information used by your storefront.">
+  <a class="back-link" href="/admin/products"><Icon name="arrow-left" /> Products</a>
+  {message && <p class="notice" role="status">{message}</p>}{error && <p class="error" role="alert">{error}</p>}
+  {product ? <form method="POST" class="record-editor">
+    <section class="record-main"><div class="form-section"><h2>Product details</h2><label class="field">Name<input name="name" value={product.name} required /></label><label class="field">Description<textarea name="description" rows="6">{product.description}</textarea></label></div><div class="form-section"><h2>Pricing and inventory</h2><div class="form-grid"><label class="field">Price (£)<input name="price" type="number" min="0" step="0.01" value={(product.pricePence / 100).toFixed(2)} required /></label><label class="field">Inventory<input name="inventory" type="number" min="0" value={product.inventory} /></label></div></div></section>
+    <aside class="record-aside"><div class="form-section"><h2>Publishing</h2><label class="field">Status<select name="status"><option value="draft" selected={product.status === 'draft'}>Draft</option><option value="active" selected={product.status === 'active'}>Active</option></select></label><label class="field">Category<input name="category" value={product.category} /></label></div><div class="form-section"><h2>Storefront</h2><label class="field">URL handle<input name="slug" value={product.slug} required /></label><label class="field">Image<select name="imageAssetId"><option value="">No image</option>{assets.map((asset) => <option value={asset.id} selected={asset.id === product.imageAssetId}>{asset.name}</option>)}</select></label></div><button>Save product</button></aside>
+  </form> : <div class="empty-state"><h2>Product not found</h2><p>This product does not belong to the active store.</p><a class="button secondary" href="/admin/products">Back to products</a></div>}
+</MerchantAdminLayout>

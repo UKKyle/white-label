@@ -1,6 +1,7 @@
 ---
 import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
 import OnlineStoreNav from '../../../components/platform/OnlineStoreNav.astro';
+import Icon from '../../../components/platform/Icon.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
 import { getDraftRevision } from '../../../lib/storefront/themeStore';
 const value = await requireStoreMembership(Astro);
@@ -15,7 +16,7 @@ const pages = draft ? Object.values(draft.configuration.pages) : [];
   <section class="workspace-table">
     <table>
       <thead><tr><th>Page</th><th>Type</th><th>URL</th><th>Sections</th><th>Status</th><th></th></tr></thead>
-      <tbody>{pages.length ? pages.map((page) => <tr><td><strong>{page.title}</strong><small>{['home','product','collection','cart','not_found'].includes(page.id) ? 'Required system page' : 'Editable page'}</small></td><td><span class="page-type">{page.pageType}</span></td><td><code>{page.handle}</code></td><td>{page.sections.length}</td><td><span class:list={['badge', page.status === 'published' && 'success']}>{page.status}</span></td><td><div class="row-actions"><a href={`/admin/online-store/editor?page=${page.id}`}>Build</a><a href={`/admin/online-store/pages/${page.id}`}>Settings</a></div></td></tr>) : <tr><td colspan="6"><div class="polished-empty"><span>□</span><h3>No pages yet</h3><p>Choose a template to create your storefront foundations.</p><a class="button" href="/admin/online-store/templates">Choose template</a></div></td></tr>}</tbody>
+      <tbody>{pages.length ? pages.map((page) => <tr><td><strong>{page.title}</strong><small>{['home','product','collection','cart','not_found'].includes(page.id) ? 'Required system page' : 'Editable page'}</small></td><td><span class="page-type">{page.pageType}</span></td><td><code>{page.handle}</code></td><td>{page.sections.length}</td><td><span class:list={['badge', page.status === 'published' && 'success']}>{page.status}</span></td><td><div class="row-actions"><a href={`/admin/online-store/editor?page=${page.id}`}>Build</a><a href={`/admin/online-store/pages/${page.id}`}>Settings</a></div></td></tr>) : <tr><td colspan="6"><div class="polished-empty"><Icon name="clipboard" /><h3>No pages yet</h3><p>Choose a template to create your storefront foundations.</p><a class="button" href="/admin/online-store/templates">Choose template</a></div></td></tr>}</tbody>
     </table>
   </section>
   </div></div>

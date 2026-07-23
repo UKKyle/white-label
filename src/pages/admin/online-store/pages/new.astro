@@ -1,6 +1,7 @@
 ---
 import MerchantAdminLayout from '../../../../layouts/MerchantAdminLayout.astro';
 import OnlineStoreNav from '../../../../components/platform/OnlineStoreNav.astro';
+import Icon from '../../../../components/platform/Icon.astro';
 import { requireStoreMembership } from '../../../../lib/platform/auth';
 import { createPage, getDraftRevision, saveDraft } from '../../../../lib/storefront/themeStore';
 const value = await requireStoreMembership(Astro);
@@ -23,7 +24,7 @@ if (Astro.request.method === 'POST') {
 ---
 <MerchantAdminLayout title={`New page | ${store.name}`} store={store} user={user} membership={membership} heading="Create page" description="Page creation will use the shared section editor and tenant draft revisions.">
   <div class="online-store-workspace"><OnlineStoreNav /><div class="store-workspace-content narrow-workspace">
-    <a class="back-link" href="/admin/online-store/pages">← Back to pages</a>
+    <a class="back-link" href="/admin/online-store/pages"><Icon name="arrow-left" /> Back to pages</a>
     <section class="workspace-form-card"><div class="workspace-section-heading"><span>New page</span><h2>Create a storefront page</h2><p>Start with a flexible content page, then add sections in the builder.</p></div>
       {error && <p class="error">{error}</p>}
       <form method="POST" class="stack">

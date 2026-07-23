@@ -2,6 +2,7 @@
 import type { Store } from '../../types/platform';
 import type { PageConfiguration, ThemeConfiguration } from '../../types/storefront';
 import { resolveStorefrontHref } from '../../lib/storefront/links';
+import { listCatalogProducts } from '../../lib/storefront/catalogStore';
 
 const { store, configuration, pageId = 'home', preview = false, selectedSectionId, editor = false } = Astro.props as {
   store: Store;
@@ -18,6 +19,16 @@ const nav = [...configuration.navigation.mainMenu].filter((item) => item.visible
 const footer = [...configuration.navigation.footerMenu].filter((item) => item.visible).sort((a, b) => a.order - b.order);
 const homeHref = `/store/${encodeURIComponent(store.slug)}`;
 const link = (value: unknown) => resolveStorefrontHref(store.slug, value);
+const catalogue = (await listCatalogProducts(store.id, Astro)).filter((product) => product.status === 'active');
+const assetHref = (assetId?: string) => assetId ? `/store-assets/${encodeURIComponent(store.slug)}/${encodeURIComponent(assetId)}` : '';
+const sectionStyle = (section: PageConfiguration['sections'][number]) => [
+  `--section-background:${String(section.settings.backgroundColor || 'transparent')}`,
+  `--section-text:${String(section.settings.textColor || settings.textColor)}`,
+  `--section-padding-top:${Number(section.settings.paddingTop ?? settings.sectionSpacing)}px`,
+  `--section-padding-bottom:${Number(section.settings.paddingBottom ?? settings.sectionSpacing)}px`,
+  `--section-image-fit:${String(section.settings.imageFit || 'cover')}`,
+  `--section-focal-point:${String(section.settings.focalPoint || 'center')}`,
+].join(';');
 ---
 <div
   class:list={['storefront', `template-${configuration.templateKey}`, `product-card-${settings.productCardStyle}`, preview && 'is-preview']}
@@ -31,7 +42,7 @@ const link = (value: unknown) => resolveStorefrontHref(store.slug, value);
   </header>
   <main>
     {sections.map((section) => (
-      <section class:list={['sf-section', `sf-${section.type}`, editor && 'is-editor-section', selectedSectionId === section.id && 'is-editor-selected']} data-section-id={section.id}>
+      <section class:list={['sf-section', `sf-${section.type}`, section.settings.fullWidth === true && 'is-full-width', `heading-${String(section.settings.headingSize || 'default')}`, editor && 'is-editor-section', selectedSectionId === section.id && 'is-editor-selected']} data-section-id={section.id} style={sectionStyle(section)}>
         {section.type === 'announcement' && <p class="sf-announcement">{String(section.settings.text ?? 'Announcement')}</p>}
         {section.type === 'header' && null}
         {section.type === 'hero' && (
@@ -42,21 +53,31 @@ const link = (value: unknown) => resolveStorefrontHref(store.slug, value);
               <p>{String(section.settings.body ?? 'Add your own text in the editor.')}</p>
               {section.blocks.filter((block) => block.visible).map((block) => block.type === 'button' && link(block.settings.href) && <a class="sf-button" href={link(block.settings.href)}>{String(block.settings.label ?? 'Shop now')}</a>)}
             </div>
-            <div class="sf-media" aria-label="Preview media"></div>
+            <div class="sf-media">{section.settings.imageAssetId ? <img src={assetHref(String(section.settings.imageAssetId))} alt={String(section.settings.imageAlt ?? '')} /> : <span aria-hidden="true"></span>}</div>
           </div>
         )}
         {['featured_collection', 'product_grid', 'featured_product', 'category_grid', 'collection_list'].includes(section.type) && (
           <div>
             <h2>{String(section.settings.heading ?? section.label)}</h2>
-            <div class="sf-products">
-              {[1, 2, 3, 4].map((item) => <article class="sf-product"><div class="sf-product-image"></div><h3>Preview product {item}</h3><p>£0.00</p></article>)}
-            </div>
+            {section.type === 'category_grid' || section.type === 'collection_list' ? (() => {
+              const categories = [...new Set(catalogue.map((product) => product.category).filter(Boolean))].slice(0, Number(section.settings.productCount ?? 6));
+              return categories.length ? <div class="sf-products">{categories.map((category) => <a class="sf-product sf-category-card" href={`${homeHref}/collections/${encodeURIComponent(category.toLowerCase().replace(/[^a-z0-9]+/g, '-'))}`}><div class="sf-product-image"></div><h3>{category}</h3><p>Explore collection</p></a>)}</div> : <div class="sf-catalogue-empty"><p>No collections available yet.</p>{editor && <span>Add categories to active products.</span>}</div>;
+            })() : (() => {
+              const selectedIds = String(section.settings.productIds ?? '').split(',').filter(Boolean);
+              const collection = String(section.settings.collection ?? '');
+              const available = collection ? catalogue.filter((product) => product.category === collection) : catalogue;
+              const products = (selectedIds.length ? selectedIds.map((id) => available.find((product) => product.id === id)).filter(Boolean) : available).slice(0, Number(section.settings.productCount ?? (section.type === 'featured_product' ? 1 : 4)));
+              return products.length ? <div class="sf-products">{products.map((product) => <article class="sf-product">{product!.imageAssetId ? <img class="sf-product-image" src={assetHref(product!.imageAssetId)} alt={product!.name} loading="lazy" /> : <div class="sf-product-image sf-image-placeholder" aria-hidden="true"></div>}<h3><a href={`${homeHref}/products/${encodeURIComponent(product!.slug)}`}>{product!.name}</a></h3><p>£{(product!.pricePence / 100).toFixed(2)}</p></article>)}</div> : <div class="sf-catalogue-empty"><p>No products selected yet.</p>{editor && <span>Choose products in the section settings.</span>}</div>;
+            })()}
           </div>
         )}
         {['image_with_text', 'rich_text', 'promo_banner', 'newsletter', 'contact_callout', 'custom_order_callout'].includes(section.type) && (
-          <div class="sf-copy">
+          <div class:list={['sf-copy', section.type === 'image_with_text' && 'has-image']}>
+            {section.type === 'image_with_text' && section.settings.imageAssetId && <img class="sf-copy-image" src={assetHref(String(section.settings.imageAssetId))} alt={String(section.settings.imageAlt ?? '')} />}
+            <div>
             <h2>{String(section.settings.heading ?? section.label)}</h2>
             <p>{String(section.settings.body ?? 'Add merchant content and calls to action here.')}</p>
+            </div>
           </div>
         )}
         {['benefits', 'testimonials', 'faq', 'gallery', 'social_grid', 'logo_list', 'multi_column'].includes(section.type) && (
@@ -70,7 +91,7 @@ const link = (value: unknown) => resolveStorefrontHref(store.slug, value);
           </div>
         )}
         {['image_banner', 'video_banner', 'slideshow'].includes(section.type) && (
-          <div class="sf-visual-banner"><div><p class="sf-eyebrow">{String(section.settings.eyebrow ?? 'Featured')}</p><h2>{String(section.settings.heading ?? section.label)}</h2><p>{String(section.settings.body ?? '')}</p></div></div>
+          <div class="sf-visual-banner" style={section.settings.imageAssetId ? `background-image:linear-gradient(90deg,rgba(10,18,35,.64),rgba(10,18,35,.08)),url(${assetHref(String(section.settings.imageAssetId))})` : undefined}><div><p class="sf-eyebrow">{String(section.settings.eyebrow ?? 'Featured')}</p><h2>{String(section.settings.heading ?? section.label)}</h2><p>{String(section.settings.body ?? '')}</p></div></div>
         )}
         {section.type === 'before_after' && <div><h2>{String(section.settings.heading ?? section.label)}</h2><div class="sf-before-after"><span>Before</span><span>After</span></div></div>}
         {['map_location', 'opening_hours'].includes(section.type) && <div class="sf-business-info"><div><p class="sf-eyebrow">Store information</p><h2>{String(section.settings.heading ?? section.label)}</h2><p>{String(section.settings.body ?? 'Add the details customers need before they visit.')}</p></div><div class="sf-business-visual">{section.type === 'map_location' ? 'Map and directions' : 'Opening times'}</div></div>}

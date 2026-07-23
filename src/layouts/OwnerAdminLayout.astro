@@ -1,5 +1,6 @@
 ---
 import PlatformLayout from './PlatformLayout.astro';
+import Icon from '../components/platform/Icon.astro';
 import { isActivePath, ownerNavigation } from '../lib/platform/navigation';
 
 const { title = 'Owner admin | White Label', heading = 'Platform overview', description = '' } = Astro.props as {
@@ -8,6 +9,7 @@ const { title = 'Owner admin | White Label', heading = 'Platform overview', desc
   description?: string;
 };
 const pathname = Astro.url.pathname;
+const icons: Record<string, string> = { Overview: 'home', Stores: 'store', Merchants: 'users', Billing: 'card', Support: 'help', Audit: 'clipboard', 'Platform settings': 'settings' };
 ---
 <PlatformLayout title={title}>
   <div class="dashboard-shell owner-shell">
@@ -21,10 +23,10 @@ const pathname = Astro.url.pathname;
       </div>
       <nav class="sidebar-nav">
         {ownerNavigation.map((item) => (
-          <a href={item.href} class:list={['sidebar-link', isActivePath(pathname, item.href) && 'is-active']}>{item.label}</a>
+          <a href={item.href} class:list={['sidebar-link', isActivePath(pathname, item.href) && 'is-active']}><Icon name={icons[item.label] ?? 'layout'} />{item.label}</a>
         ))}
       </nav>
-      <a class="sidebar-link sidebar-signout" href="/admin/logout">Sign out</a>
+      <a class="sidebar-link sidebar-signout" href="/admin/logout"><Icon name="log-out" />Sign out</a>
     </aside>
     <main class="dashboard-main">
       <header class="dashboard-header">

@@ -1,19 +1,24 @@
 ---
 import MerchantAdminLayout from '../../layouts/MerchantAdminLayout.astro';
+import Icon from '../../components/platform/Icon.astro';
 import { requireStoreMembership } from '../../lib/platform/auth';
+import { listCatalogProducts } from '../../lib/storefront/catalogStore';
 const value = await requireStoreMembership(Astro);
 if (!value) return Astro.redirect('/login');
 const { store, user, membership } = value;
+const q = (Astro.url.searchParams.get('q') ?? '').trim().toLowerCase();
+const products = await listCatalogProducts(store.id, Astro);
+const filtered = q ? products.filter((product) => [product.name, product.category, product.slug].join(' ').toLowerCase().includes(q)) : products;
 ---
 <MerchantAdminLayout title={`Products | ${store.name}`} store={store} user={user} membership={membership} heading="Products" description="Build the catalogue for this store.">
-  <section class="toolbar">
-    <input class="input" type="search" placeholder="Search products" aria-label="Search products" style="max-width:320px" />
+  <section class="page-toolbar">
+    <form method="GET" class="search-control"><Icon name="search" /><input name="q" value={q} type="search" placeholder="Search products" aria-label="Search products" /></form>
     <a class="button" href="/admin/products/new">Add product</a>
   </section>
-  <section class="table-wrap">
+  <section class="data-table">
     <table>
       <thead><tr><th>Product</th><th>Status</th><th>Inventory</th><th>Price</th><th>Type</th><th>Action</th></tr></thead>
-      <tbody><tr><td colspan="6"><div class="empty">No products have been added to this store yet. Product persistence is ready to be connected to the tenant catalogue in the next pass.</div></td></tr></tbody>
+      <tbody>{filtered.length ? filtered.map((product) => <tr><td><strong>{product.name}</strong><small>/{product.slug}</small></td><td><span class:list={['badge', product.status === 'active' && 'success']}>{product.status}</span></td><td>{product.inventory}</td><td>£{(product.pricePence / 100).toFixed(2)}</td><td>{product.category || 'Uncategorised'}</td><td><a class="text-action" href={`/admin/products/${product.id}`}>Edit</a></td></tr>) : <tr><td colspan="6"><div class="empty-state"><Icon name="grid" /><h2>{q ? 'No matching products' : 'Add your first product'}</h2><p>{q ? 'Try another search term.' : 'Products you create here can be selected directly inside the storefront builder.'}</p>{!q && <a class="button" href="/admin/products/new">Add product</a>}</div></td></tr>}</tbody>
     </table>
   </section>
 </MerchantAdminLayout>

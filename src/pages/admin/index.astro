@@ -1,17 +1,24 @@
 ---
 import MerchantAdminLayout from '../../layouts/MerchantAdminLayout.astro';
 import { requireStoreMembership } from '../../lib/platform/auth';
+import { listCatalogProducts } from '../../lib/storefront/catalogStore';
+import { getDraftRevision, getPublishedRevision } from '../../lib/storefront/themeStore';
 
 const value = await requireStoreMembership(Astro);
 if (!value) return Astro.redirect('/login');
 const { store, user, membership } = value;
+const [products, draft, published] = await Promise.all([
+  listCatalogProducts(store.id, Astro),
+  getDraftRevision(store.id, Astro),
+  getPublishedRevision(store.id, Astro),
+]);
 const checklist = [
   ['Add business details', Boolean(store.contactEmail && store.contactPhone)],
-  ['Choose and customise a storefront template', false],
-  ['Add the first product', false],
+  ['Choose and customise a storefront template', Boolean(draft)],
+  ['Add the first product', products.length > 0],
   ['Configure fulfilment', false],
   ['Review policies', false],
-  ['Preview and publish', false],
+  ['Preview and publish', Boolean(published)],
 ];
 const completed = checklist.filter(([, done]) => done).length;
 ---
@@ -19,13 +26,14 @@ const completed = checklist.filter(([, done]) => done).length;
   <section class="grid">
     <div class="card"><p class="muted">Store status</p><p class="metric">{store.status.replaceAll('_', ' ')}</p></div>
     <div class="card"><p class="muted">Billing</p><p class="metric">{store.billingStatus.replaceAll('_', ' ')}</p></div>
-    <div class="card"><p class="muted">Setup progress</p><p class="metric">{completed}/{checklist.length}</p></div>
+    <div class="card"><p class="muted">Active products</p><p class="metric">{products.filter((product) => product.status === 'active').length}</p></div>
+    <div class="card"><p class="muted">Setup progress</p><p class="metric">{Math.round((completed / checklist.length) * 100)}%</p></div>
     <div class="card"><p class="muted">Recent orders</p><p class="metric">0</p></div>
   </section>
   <section class="two-col" style="margin-top:16px">
     <div class="card">
       <h2>Next actions</h2>
-      <p class="muted">These links stay inside the merchant admin and lead to the new platform routes.</p>
+      <p class="muted">Continue setting up the parts customers will see first.</p>
       <div class="grid">
         <a class="button secondary" href="/admin/products">Add products</a>
         <a class="button secondary" href="/admin/online-store/branding">Set branding</a>
@@ -42,6 +50,6 @@ const completed = checklist.filter(([, done]) => done).length;
   </section>
   <section class="card" style="margin-top:16px">
     <h2>Recent activity</h2>
-    <p class="muted">No store-scoped activity has been recorded yet.</p>
+    <p class="muted">{published ? `Storefront version ${published.version} is live. Your current draft is version ${draft?.version ?? published.version}.` : draft ? `Draft version ${draft.version} is ready to preview and publish.` : 'No storefront activity has been recorded yet.'}</p>
   </section>
 </MerchantAdminLayout>

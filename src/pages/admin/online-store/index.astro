@@ -1,6 +1,7 @@
 ---
 import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
 import OnlineStoreNav from '../../../components/platform/OnlineStoreNav.astro';
+import Icon from '../../../components/platform/Icon.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
 import { getDraftRevision, getPublishedRevision, getStoreTheme, listThemeRevisions } from '../../../lib/storefront/themeStore';
 const value = await requireStoreMembership(Astro);
@@ -25,17 +26,17 @@ const completed = checklist.filter((item) => item.done).length;
     <OnlineStoreNav />
     <div class="store-workspace-content">
       <section class="store-home-hero">
-        <div><span class:list={['status-dot', published && 'is-live']}>{published ? 'Live storefront' : 'Not published'}</span><h2>Make your storefront feel like your brand.</h2><p>Manage every customer-facing detail from one clear workspace.</p><div class="hero-actions"><a class="button" href="/admin/online-store/editor">Customise store</a>{published && <a class="button secondary" href={`/store/${store.slug}`} target="_blank">View live store ↗</a>}</div></div>
+        <div><span class:list={['status-dot', published && 'is-live']}>{published ? 'Live storefront' : 'Not published'}</span><h2>Make your storefront feel like your brand.</h2><p>Manage every customer-facing detail from one clear workspace.</p><div class="hero-actions"><a class="button" href="/admin/online-store/editor">Customise store</a>{published && <a class="button secondary" href={`/store/${store.slug}`} target="_blank">View live store <Icon name="external-link" /></a>}</div></div>
         <div class="storefront-mini-preview"><span>{draft?.configuration.globalSettings.logoText || store.name.slice(0, 2)}</span><div><i></i><i></i><i></i></div><strong>{draft?.configuration.globalSettings.storeNameDisplay || store.name}</strong><small>{theme?.name ?? 'Choose a template'}</small></div>
       </section>
       <section class="store-status-grid">
         <article><span>Storefront URL</span><strong>/store/{store.slug}</strong><small>{published ? 'Ready for customers' : 'Available after publishing'}</small></article>
-        <article><span>Current template</span><strong>{theme?.name ?? 'Not selected'}</strong><a href="/admin/online-store/templates">Browse templates →</a></article>
+        <article><span>Current template</span><strong>{theme?.name ?? 'Not selected'}</strong><a href="/admin/online-store/templates">Browse templates <Icon name="chevron-right" /></a></article>
         <article><span>Publishing</span><strong>{unpublished ? 'Changes waiting' : published ? 'Everything is live' : 'Not published'}</strong><small>{published ? `Last published ${new Date(published.createdAt).toLocaleString('en-GB')}` : 'Preview before going live'}</small></article>
       </section>
       <section class="setup-panel">
         <div class="setup-heading"><div><span>Store setup</span><h2>{completed === checklist.length ? 'Your storefront is ready' : `${completed} of ${checklist.length} essentials complete`}</h2></div><div class="setup-progress" aria-label={`${completed} of ${checklist.length} complete`}><i style={`width:${completed / checklist.length * 100}%`}></i></div></div>
-        <div class="setup-list">{checklist.map((item) => <a href={item.href}><span class:list={['setup-check', item.done && 'is-done']}>{item.done ? '✓' : '○'}</span><span>{item.label}</span><span aria-hidden="true">→</span></a>)}</div>
+        <div class="setup-list">{checklist.map((item) => <a href={item.href}><span class:list={['setup-check', item.done && 'is-done']}><Icon name={item.done ? 'check' : 'circle'} /></span><span>{item.label}</span><Icon name="chevron-right" /></a>)}</div>
       </section>
       <p class="workspace-footnote">{revisions.length} draft and published revision{revisions.length === 1 ? '' : 's'} retained for safe rollback.</p>
     </div>

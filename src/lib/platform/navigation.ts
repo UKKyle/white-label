@@ -20,12 +20,12 @@ export const merchantNavigation: PlatformNavItem[] = [
 ];
 
 export const merchantOnlineStoreNavigation: PlatformNavItem[] = [
-  { label: 'Store home', href: '/admin/online-store', description: '⌂' },
-  { label: 'Builder', href: '/admin/online-store/editor', description: '✦' },
-  { label: 'Pages', href: '/admin/online-store/pages', description: '□' },
-  { label: 'Navigation', href: '/admin/online-store/navigation', description: '☷' },
-  { label: 'Design', href: '/admin/online-store/branding', description: '◐' },
-  { label: 'Templates', href: '/admin/online-store/templates', description: '▦' },
+  { label: 'Store home', href: '/admin/online-store', description: 'Storefront overview' },
+  { label: 'Builder', href: '/admin/online-store/editor', description: 'Visual storefront editor' },
+  { label: 'Pages', href: '/admin/online-store/pages', description: 'Storefront pages' },
+  { label: 'Navigation', href: '/admin/online-store/navigation', description: 'Customer menus' },
+  { label: 'Design', href: '/admin/online-store/branding', description: 'Colours and typography' },
+  { label: 'Templates', href: '/admin/online-store/templates', description: 'Storefront templates' },
 ];
 
 export const merchantSettingsNavigation: PlatformNavItem[] = [

@@ -2,6 +2,7 @@
 import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
 import OnlineStoreNav from '../../../components/platform/OnlineStoreNav.astro';
 import StorefrontRenderer from '../../../components/storefront/StorefrontRenderer.astro';
+import Icon from '../../../components/platform/Icon.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
 import { getDraftRevision, saveDraft } from '../../../lib/storefront/themeStore';
 const value = await requireStoreMembership(Astro);
@@ -50,7 +51,7 @@ const settings = draft?.configuration.globalSettings;
           <details class="settings-group"><summary><span>Layout</span><small>Width, spacing and corners</small></summary><div class="settings-group-body"><label class="range-field">Content width <output>{settings.contentWidth}px</output><input name="contentWidth" type="range" min="900" max="1440" step="20" value={settings.contentWidth} /></label><label class="range-field">Section spacing <output>{settings.sectionSpacing}px</output><input name="sectionSpacing" type="range" min="32" max="120" step="4" value={settings.sectionSpacing} /></label><div class="form-grid"><label class="field">Card corners<input name="cardRadius" type="number" min="0" max="32" value={settings.cardRadius} /></label><label class="field">Button corners<input name="buttonRadius" type="number" min="0" max="32" value={settings.buttonRadius} /></label></div></div></details>
           <details class="settings-group"><summary><span>Product cards</span><small>Catalogue presentation</small></summary><div class="settings-group-body"><label class="field">Card treatment<select name="productCardStyle"><option value="minimal" selected={settings.productCardStyle === 'minimal'}>Minimal</option><option value="bordered" selected={settings.productCardStyle === 'bordered'}>Bordered</option><option value="elevated" selected={settings.productCardStyle === 'elevated'}>Elevated</option></select></label></div></details>
         </div>
-        <aside class="design-preview"><div class="design-preview-bar"><span>Live draft preview</span><a href="/admin/online-store/editor">Open builder →</a></div><div class="design-preview-frame"><StorefrontRenderer store={store} configuration={draft!.configuration} pageId="home" preview /></div></aside>
+        <aside class="design-preview"><div class="design-preview-bar"><span>Live draft preview</span><a href="/admin/online-store/editor">Open builder <Icon name="chevron-right" /></a></div><div class="design-preview-frame"><StorefrontRenderer store={store} configuration={draft!.configuration} pageId="home" preview /></div></aside>
       </div>
     </form>
   )}

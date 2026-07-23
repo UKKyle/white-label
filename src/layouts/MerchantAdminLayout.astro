@@ -1,5 +1,6 @@
 ---
 import PlatformLayout from './PlatformLayout.astro';
+import Icon from '../components/platform/Icon.astro';
 import { isActivePath, merchantNavigation } from '../lib/platform/navigation';
 import type { PlatformUser, Store, StoreMembership } from '../types/platform';
 
@@ -15,6 +16,7 @@ const { title = 'Merchant admin | White Label', store, user, membership, eyebrow
 const pathname = Astro.url.pathname;
 const isStoreWorkspace = pathname.startsWith('/admin/online-store');
 const isStoreBuilder = pathname === '/admin/online-store/editor';
+const icons: Record<string, string> = { Home: 'home', Orders: 'clipboard', Products: 'grid', Customers: 'users', 'Online Store': 'store', POS: 'card', Marketing: 'megaphone', Analytics: 'chart', Staff: 'users', Settings: 'settings', Billing: 'card' };
 ---
 <PlatformLayout title={title}>
   <div class="dashboard-shell">
@@ -28,10 +30,10 @@ const isStoreBuilder = pathname === '/admin/online-store/editor';
       </div>
       <nav class="sidebar-nav">
         {merchantNavigation.map((item) => (
-          <a href={item.href} class:list={['sidebar-link', isActivePath(pathname, item.href) && 'is-active']}>{item.label}</a>
+          <a href={item.href} class:list={['sidebar-link', isActivePath(pathname, item.href) && 'is-active']}><Icon name={icons[item.label] ?? 'layout'} />{item.label}</a>
         ))}
       </nav>
-      <a class="sidebar-link sidebar-signout" href="/admin/logout">Sign out</a>
+      <a class="sidebar-link sidebar-signout" href="/admin/logout"><Icon name="log-out" />Sign out</a>
     </aside>
     <main class:list={['dashboard-main', isStoreWorkspace && 'store-dashboard-main', isStoreBuilder && 'builder-dashboard-main']}>
       <header class:list={['dashboard-header', isStoreBuilder && 'builder-page-header']}>

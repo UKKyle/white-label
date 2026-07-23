@@ -3,8 +3,11 @@ import { appendAudit } from '../platform/store';
 import type { PlatformRole } from '../../types/platform';
 import type { BlockInstance, PageConfiguration, PreviewToken, SectionInstance, StoreTheme, TemplateKey, ThemeConfiguration, ThemeRevision } from '../../types/storefront';
 import { createDefaultConfiguration, getTemplate, sectionLibrary, templates } from './templates';
+import { listStoreAssets } from './assetStore';
+import { listCatalogProducts } from './catalogStore';
 
 type Kv = { get(key: string, type?: 'json'): Promise<unknown>; put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>; delete(key: string): Promise<void> };
+type EditorHistoryState = { undo: string[]; redo: string[] };
 const memory = new Map<string, string>();
 const PREFIX = 'wl:v1:storefront:';
 
@@ -38,8 +41,30 @@ function cleanText(value: unknown, fallback = '') {
 function cleanUrl(value: unknown, fallback = '#') {
   const candidate = String(value ?? fallback).trim();
   if (/^(javascript|data|vbscript):/i.test(candidate)) return fallback;
-  if (candidate.startsWith('/') || candidate.startsWith('https://') || candidate.startsWith('mailto:')) return candidate.slice(0, 500);
+  if (candidate.startsWith('/') || candidate.startsWith('https://') || candidate.startsWith('mailto:') || candidate.startsWith('tel:')) return candidate.slice(0, 500);
   return fallback;
+}
+
+function cleanColour(value: unknown, fallback = '') {
+  const candidate = String(value ?? '').trim();
+  return /^#[0-9a-f]{6}$/i.test(candidate) ? candidate : fallback;
+}
+
+function cleanSetting(settingKey: string, value: unknown): string | number | boolean {
+  if (/href|url|link/i.test(settingKey)) return cleanUrl(value);
+  if (/color$/i.test(settingKey)) return cleanColour(value);
+  if (settingKey === 'alignment') return value === 'center' ? 'center' : 'left';
+  if (settingKey === 'imagePosition') return value === 'left' ? 'left' : 'right';
+  if (settingKey === 'imageFit') return value === 'contain' ? 'contain' : 'cover';
+  if (settingKey === 'focalPoint') return ['center', 'top', 'bottom', 'left', 'right'].includes(String(value)) ? String(value) : 'center';
+  if (settingKey === 'headingSize') return ['small', 'default', 'large'].includes(String(value)) ? String(value) : 'default';
+  if (settingKey === 'imageAssetId') return /^[a-z0-9_-]{1,80}$/i.test(String(value ?? '')) ? String(value) : '';
+  if (settingKey === 'productIds') return String(value ?? '').split(',').map((item) => item.trim()).filter((item) => /^[a-z0-9_-]{1,80}$/i.test(item)).slice(0, 24).join(',');
+  if (['paddingTop', 'paddingBottom'].includes(settingKey)) return Math.min(160, Math.max(0, Number(value) || 0));
+  if (settingKey === 'columnsDesktop') return Math.min(5, Math.max(2, Number(value) || 4));
+  if (settingKey === 'productCount') return Math.min(24, Math.max(1, Number(value) || 4));
+  if (typeof value === 'boolean' || typeof value === 'number') return value;
+  return cleanText(value);
 }
 
 function validateSection(section: SectionInstance): SectionInstance {
@@ -50,11 +75,7 @@ function validateSection(section: SectionInstance): SectionInstance {
     label: cleanText(section.label, section.type),
     visible: section.visible !== false,
     order: Number.isFinite(section.order) ? Number(section.order) : 0,
-    settings: Object.fromEntries(Object.entries(section.settings ?? {}).map(([settingKey, value]) => {
-      if (/href|url|link/i.test(settingKey)) return [settingKey, cleanUrl(value)];
-      if (typeof value === 'boolean' || typeof value === 'number') return [settingKey, value];
-      return [settingKey, cleanText(value)];
-    })),
+    settings: Object.fromEntries(Object.entries(section.settings ?? {}).slice(0, 40).map(([settingKey, value]) => [settingKey, cleanSetting(settingKey, value)])),
     blocks: (section.blocks ?? []).slice(0, 12).map(validateBlock).sort((a, b) => a.order - b.order),
   };
 }
@@ -66,11 +87,7 @@ function validateBlock(block: BlockInstance): BlockInstance {
     label: cleanText(block.label, block.type),
     visible: block.visible !== false,
     order: Number.isFinite(block.order) ? Number(block.order) : 0,
-    settings: Object.fromEntries(Object.entries(block.settings ?? {}).map(([settingKey, value]) => {
-      if (/href|url|link/i.test(settingKey)) return [settingKey, cleanUrl(value)];
-      if (typeof value === 'boolean' || typeof value === 'number') return [settingKey, value];
-      return [settingKey, cleanText(value)];
-    })),
+    settings: Object.fromEntries(Object.entries(block.settings ?? {}).slice(0, 30).map(([settingKey, value]) => [settingKey, cleanSetting(settingKey, value)])),
   };
 }
 
@@ -84,7 +101,7 @@ export function validateThemeConfiguration(configuration: ThemeConfiguration): T
       title: cleanText(page.title, pageKey),
       handle: page.handle.startsWith('/') ? cleanUrl(page.handle, '/') : '/',
       status: page.status === 'published' ? 'published' : 'draft',
-      sections: (page.sections ?? []).map(validateSection).sort((a, b) => a.order - b.order),
+      sections: (page.sections ?? []).slice(0, 80).map(validateSection).sort((a, b) => a.order - b.order),
     };
     return [pageKey, safePage];
   }));
@@ -95,14 +112,21 @@ export function validateThemeConfiguration(configuration: ThemeConfiguration): T
       ...configuration.globalSettings,
       storeNameDisplay: cleanText(configuration.globalSettings.storeNameDisplay, 'Your Store'),
       logoText: cleanText(configuration.globalSettings.logoText, 'YS').slice(0, 4),
-      primaryColor: cleanText(configuration.globalSettings.primaryColor, '#17202a'),
-      accentColor: cleanText(configuration.globalSettings.accentColor, '#3863d9'),
-      headingFont: cleanText(configuration.globalSettings.headingFont, 'Inter'),
-      bodyFont: cleanText(configuration.globalSettings.bodyFont, 'Inter'),
-      buttonRadius: Number(configuration.globalSettings.buttonRadius) || 8,
-      cardRadius: Number(configuration.globalSettings.cardRadius) || 8,
-      sectionSpacing: Number(configuration.globalSettings.sectionSpacing) || 72,
-      contentWidth: Number(configuration.globalSettings.contentWidth) || 1180,
+      primaryColor: cleanColour(configuration.globalSettings.primaryColor, '#17202a'),
+      secondaryColor: cleanColour(configuration.globalSettings.secondaryColor, '#eef1f5'),
+      accentColor: cleanColour(configuration.globalSettings.accentColor, '#3863d9'),
+      backgroundColor: cleanColour(configuration.globalSettings.backgroundColor, '#ffffff'),
+      surfaceColor: cleanColour(configuration.globalSettings.surfaceColor, '#ffffff'),
+      textColor: cleanColour(configuration.globalSettings.textColor, '#17202a'),
+      mutedTextColor: cleanColour(configuration.globalSettings.mutedTextColor, '#66717f'),
+      borderColor: cleanColour(configuration.globalSettings.borderColor, '#e3e7ed'),
+      headingFont: ['Inter', 'Georgia', 'Arial', 'Verdana'].includes(configuration.globalSettings.headingFont) ? configuration.globalSettings.headingFont : 'Inter',
+      bodyFont: ['Inter', 'Georgia', 'Arial', 'Verdana'].includes(configuration.globalSettings.bodyFont) ? configuration.globalSettings.bodyFont : 'Inter',
+      buttonRadius: Math.min(40, Math.max(0, Number(configuration.globalSettings.buttonRadius) || 8)),
+      cardRadius: Math.min(40, Math.max(0, Number(configuration.globalSettings.cardRadius) || 8)),
+      sectionSpacing: Math.min(160, Math.max(16, Number(configuration.globalSettings.sectionSpacing) || 72)),
+      contentWidth: Math.min(1600, Math.max(640, Number(configuration.globalSettings.contentWidth) || 1180)),
+      productCardStyle: ['minimal', 'bordered', 'elevated'].includes(configuration.globalSettings.productCardStyle) ? configuration.globalSettings.productCardStyle : 'minimal',
     },
     pages,
     navigation: {
@@ -163,7 +187,10 @@ export async function selectTemplateForStore(input: { storeId: string; userId: s
   const revision: ThemeRevision = { id: id('rev'), storeId: input.storeId, themeId: theme.id, version: await nextVersion(input.storeId, context), createdByUserId: input.userId, configuration, status: 'draft', changeType: existing ? 'template.switch' : 'template.select', createdAt: now() };
   theme.draftRevisionId = revision.id;
   await writeRevision(revision, context);
-  await write(key(input.storeId, 'theme'), theme, context);
+  await Promise.all([
+    write(key(input.storeId, 'theme'), theme, context),
+    write(key(input.storeId, 'editor-history'), { undo: [], redo: [] } satisfies EditorHistoryState, context),
+  ]);
   await appendAudit({ actorUserId: input.userId, actorRole: input.role, storeId: input.storeId, action: revision.changeType, targetType: 'theme', targetId: theme.id, metadata: { template: input.templateKey, revisionId: revision.id } }, context);
   return { theme, revision };
 }
@@ -187,10 +214,52 @@ export async function saveDraft(input: { storeId: string; userId: string; role: 
   const revision: ThemeRevision = { id: id('rev'), storeId: input.storeId, themeId: theme.id, version: await nextVersion(input.storeId, context), createdByUserId: input.userId, configuration, status: 'draft', changeType: input.changeType, createdAt: now() };
   theme.draftRevisionId = revision.id;
   theme.updatedAt = now();
+  const history = await read<EditorHistoryState>(key(input.storeId, 'editor-history'), context) ?? { undo: [], redo: [] };
   await writeRevision(revision, context);
-  await write(key(input.storeId, 'theme'), theme, context);
+  await Promise.all([
+    write(key(input.storeId, 'theme'), theme, context),
+    write(key(input.storeId, 'editor-history'), { undo: currentDraft ? [currentDraft.id, ...history.undo.filter((revisionId) => revisionId !== currentDraft.id)].slice(0, 30) : history.undo, redo: [] }, context),
+  ]);
   await appendAudit({ actorUserId: input.userId, actorRole: input.role, storeId: input.storeId, action: 'theme.draft_saved', targetType: 'themeRevision', targetId: revision.id, metadata: { version: String(revision.version), changeType: input.changeType } }, context);
   return revision;
+}
+
+export async function getEditorHistoryState(storeId: string, context?: RuntimeContext) {
+  const state = await read<EditorHistoryState>(key(storeId, 'editor-history'), context) ?? { undo: [], redo: [] };
+  return { canUndo: state.undo.length > 0, canRedo: state.redo.length > 0 };
+}
+
+async function restoreEditorHistory(input: { storeId: string; userId: string; role: PlatformRole; direction: 'undo' | 'redo' }, context?: RuntimeContext) {
+  const theme = await getStoreTheme(input.storeId, context);
+  const current = await getDraftRevision(input.storeId, context);
+  if (!theme || !current) throw new Error('No draft history is available.');
+  let state = await read<EditorHistoryState>(key(input.storeId, 'editor-history'), context) ?? { undo: [], redo: [] };
+  if (!state.undo.length && input.direction === 'undo') {
+    const revisions = await listThemeRevisions(input.storeId, context);
+    state.undo = revisions.filter((revision) => revision.id !== current.id && revision.status === 'draft').map((revision) => revision.id).slice(0, 30);
+  }
+  const source = input.direction === 'undo' ? state.undo : state.redo;
+  const targetId = source[0];
+  const target = targetId ? await getThemeRevision(input.storeId, targetId, context) : null;
+  if (!target || target.storeId !== input.storeId) throw new Error(`Nothing to ${input.direction}.`);
+  const revision: ThemeRevision = { id: id('rev'), storeId: input.storeId, themeId: theme.id, version: await nextVersion(input.storeId, context), createdByUserId: input.userId, configuration: validateThemeConfiguration(JSON.parse(JSON.stringify(target.configuration))), status: 'draft', changeType: `history.${input.direction}`, createdAt: now() };
+  theme.draftRevisionId = revision.id;
+  theme.updatedAt = now();
+  const nextState: EditorHistoryState = input.direction === 'undo'
+    ? { undo: state.undo.slice(1), redo: [current.id, ...state.redo].slice(0, 30) }
+    : { undo: [current.id, ...state.undo].slice(0, 30), redo: state.redo.slice(1) };
+  await writeRevision(revision, context);
+  await Promise.all([write(key(input.storeId, 'theme'), theme, context), write(key(input.storeId, 'editor-history'), nextState, context)]);
+  await appendAudit({ actorUserId: input.userId, actorRole: input.role, storeId: input.storeId, action: `theme.${input.direction}`, targetType: 'themeRevision', targetId: revision.id, metadata: { restoredRevisionId: target.id } }, context);
+  return revision;
+}
+
+export async function undoDraft(input: { storeId: string; userId: string; role: PlatformRole }, context?: RuntimeContext) {
+  return restoreEditorHistory({ ...input, direction: 'undo' }, context);
+}
+
+export async function redoDraft(input: { storeId: string; userId: string; role: PlatformRole }, context?: RuntimeContext) {
+  return restoreEditorHistory({ ...input, direction: 'redo' }, context);
 }
 
 export async function publishDraft(input: { storeId: string; userId: string; role: PlatformRole }, context?: RuntimeContext) {
@@ -198,6 +267,20 @@ export async function publishDraft(input: { storeId: string; userId: string; rol
   const draft = await getDraftRevision(input.storeId, context);
   if (!theme || !draft) throw new Error('No draft theme to publish.');
   const configuration = validateThemeConfiguration(draft.configuration);
+  const handles = new Set(Object.values(configuration.pages).map((page) => page.handle));
+  const allowedSystemPaths = new Set(['/account', '/search', '/cart', '/collections/all']);
+  const brokenLinks = [...configuration.navigation.mainMenu, ...configuration.navigation.footerMenu]
+    .filter((item) => item.visible && item.href.startsWith('/') && !handles.has(item.href) && !allowedSystemPaths.has(item.href));
+  if (brokenLinks.length) throw new Error(`Fix ${brokenLinks.length} broken navigation link${brokenLinks.length === 1 ? '' : 's'} before publishing.`);
+  if (!configuration.pages.home.sections.some((section) => section.visible)) throw new Error('The homepage must contain at least one visible section.');
+  const [assets, products] = await Promise.all([listStoreAssets(input.storeId, context), listCatalogProducts(input.storeId, context)]);
+  const assetIds = new Set(assets.map((asset) => asset.id));
+  const activeProductIds = new Set(products.filter((product) => product.status === 'active').map((product) => product.id));
+  const allSections = Object.values(configuration.pages).flatMap((page) => page.sections);
+  const missingAssets = allSections.filter((section) => section.settings.imageAssetId && !assetIds.has(String(section.settings.imageAssetId)));
+  const missingProducts = allSections.flatMap((section) => String(section.settings.productIds ?? '').split(',').filter(Boolean)).filter((productId) => !activeProductIds.has(productId));
+  if (missingAssets.length) throw new Error(`Replace ${missingAssets.length} missing image reference${missingAssets.length === 1 ? '' : 's'} before publishing.`);
+  if (missingProducts.length) throw new Error(`Replace ${missingProducts.length} unavailable product reference${missingProducts.length === 1 ? '' : 's'} before publishing.`);
   const revision: ThemeRevision = { ...draft, id: id('rev'), version: await nextVersion(input.storeId, context), configuration, status: 'published', changeType: 'publish', createdAt: now(), createdByUserId: input.userId };
   theme.publishedRevisionId = revision.id;
   theme.status = 'published';
@@ -261,6 +344,7 @@ export function moveSection(configuration: ThemeConfiguration, pageId: string, s
   const page = configuration.pages[pageId];
   if (!page) return configuration;
   const index = page.sections.findIndex((item) => item.id === sectionId);
+  if (index >= 0 && page.sections[index].settings.locked === true) throw new Error('Unlock this section before moving it.');
   const target = direction === 'up' ? index - 1 : index + 1;
   if (index < 0 || target < 0 || target >= page.sections.length) return configuration;
   const [item] = page.sections.splice(index, 1);
@@ -274,7 +358,22 @@ export function removeSection(configuration: ThemeConfiguration, pageId: string,
   if (!page) return configuration;
   const section = page.sections.find((item) => item.id === sectionId);
   if (!section || ['header', 'footer'].includes(section.type)) throw new Error('This required section cannot be removed.');
+  if (section.settings.locked === true) throw new Error('Unlock this section before removing it.');
   page.sections = page.sections.filter((item) => item.id !== sectionId).map((item, order) => ({ ...item, order }));
+  return validateThemeConfiguration(configuration);
+}
+
+export function pasteSection(configuration: ThemeConfiguration, pageId: string, rawSection: string, afterSectionId?: string) {
+  const page = configuration.pages[pageId];
+  if (!page) throw new Error('Page not found.');
+  let section: SectionInstance;
+  try { section = JSON.parse(rawSection) as SectionInstance; } catch { throw new Error('The copied section is invalid.'); }
+  section.id = id('section');
+  section.label = `${cleanText(section.label, section.type)} copy`;
+  section.blocks = (section.blocks ?? []).map((block, order) => ({ ...block, id: id('block'), order }));
+  const selectedIndex = afterSectionId ? page.sections.findIndex((item) => item.id === afterSectionId) : -1;
+  page.sections.splice(selectedIndex >= 0 ? selectedIndex + 1 : page.sections.length, 0, section);
+  page.sections = page.sections.map((item, order) => ({ ...item, order }));
   return validateThemeConfiguration(configuration);
 }
 
@@ -294,6 +393,36 @@ export function createPage(configuration: ThemeConfiguration, input: { title: st
   };
   configuration.pages[pageId] = page;
   return { configuration: validateThemeConfiguration(configuration), pageId };
+}
+
+export function duplicatePage(configuration: ThemeConfiguration, pageId: string) {
+  const source = configuration.pages[pageId];
+  if (!source) throw new Error('Page not found.');
+  const nextPageId = `page_${crypto.randomUUID().replaceAll('-', '').slice(0, 12)}`;
+  const baseHandle = source.handle.replace(/^\/pages\//, '').replace(/^\/+/, '') || 'page';
+  let suffix = 1;
+  let handle = `/pages/${baseHandle}-copy`;
+  const handles = new Set(Object.values(configuration.pages).map((page) => page.handle));
+  while (handles.has(handle)) handle = `/pages/${baseHandle}-copy-${++suffix}`;
+  const page = JSON.parse(JSON.stringify(source)) as PageConfiguration;
+  page.id = nextPageId;
+  page.pageType = 'content';
+  page.title = `${source.title} copy`;
+  page.handle = handle;
+  page.status = 'draft';
+  page.sections = page.sections.map((section, order) => ({ ...section, id: id('section'), order, blocks: section.blocks.map((block, blockOrder) => ({ ...block, id: id('block'), order: blockOrder })) }));
+  configuration.pages[nextPageId] = page;
+  return { configuration: validateThemeConfiguration(configuration), pageId: nextPageId };
+}
+
+export function deletePage(configuration: ThemeConfiguration, pageId: string) {
+  const page = configuration.pages[pageId];
+  if (!page) throw new Error('Page not found.');
+  if (['home', 'product', 'collection', 'cart', 'search', 'account', 'not_found'].includes(pageId)) throw new Error('Required system pages cannot be deleted.');
+  delete configuration.pages[pageId];
+  configuration.navigation.mainMenu = configuration.navigation.mainMenu.filter((item) => item.href !== page.handle).map((item, order) => ({ ...item, order }));
+  configuration.navigation.footerMenu = configuration.navigation.footerMenu.filter((item) => item.href !== page.handle).map((item, order) => ({ ...item, order }));
+  return validateThemeConfiguration(configuration);
 }
 
 export function updatePage(configuration: ThemeConfiguration, pageId: string, input: { title: string; handle: string; status: string; seoTitle: string; seoDescription: string }) {

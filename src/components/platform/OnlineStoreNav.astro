@@ -1,18 +1,20 @@
 ---
 import { isActivePath, merchantOnlineStoreNavigation } from '../../lib/platform/navigation';
+import Icon from './Icon.astro';
 const pathname = Astro.url.pathname;
+const icons: Record<string, string> = { 'Store home': 'home', Builder: 'layout', Pages: 'clipboard', Navigation: 'grid', Design: 'palette', Templates: 'image' };
 ---
 <aside class="store-workspace-nav" aria-label="Online Store workspace">
   <div class="store-workspace-brand">
-    <span class="store-workspace-icon" aria-hidden="true">◇</span>
+    <span class="store-workspace-icon"><Icon name="store" /></span>
     <div><strong>Online Store</strong><small>Storefront workspace</small></div>
   </div>
   <nav>
     {merchantOnlineStoreNavigation.map((item) => (
       <a class:list={['store-workspace-link', isActivePath(pathname, item.href) && 'is-active']} href={item.href}>
-        <span aria-hidden="true">{item.description}</span>{item.label}
+        <span><Icon name={icons[item.label] ?? 'layout'} /></span>{item.label}
       </a>
     ))}
   </nav>
-  <a class="store-workspace-help" href="/admin/online-store/editor">Customise storefront <span aria-hidden="true">→</span></a>
+  <a class="store-workspace-help" href="/admin/online-store/editor">Customise storefront <Icon name="chevron-right" /></a>
 </aside>

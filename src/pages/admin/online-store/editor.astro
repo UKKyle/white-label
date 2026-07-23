@@ -1,9 +1,12 @@
 ---
 import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
 import StorefrontRenderer from '../../../components/storefront/StorefrontRenderer.astro';
+import Icon from '../../../components/platform/Icon.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
-import { addSection, createPreviewToken, duplicateSection, getDraftRevision, getPublishedRevision, getStoreTheme, listThemeRevisions, moveSection, publishDraft, removeSection, rollbackPublishedRevision, saveDraft, selectTemplateForStore } from '../../../lib/storefront/themeStore';
+import { addSection, createPreviewToken, duplicateSection, getDraftRevision, getEditorHistoryState, getPublishedRevision, getStoreTheme, listThemeRevisions, moveSection, pasteSection, publishDraft, redoDraft, removeSection, rollbackPublishedRevision, saveDraft, selectTemplateForStore, undoDraft } from '../../../lib/storefront/themeStore';
 import { sectionLibrary } from '../../../lib/storefront/templates';
+import { createStoreAsset, listStoreAssets } from '../../../lib/storefront/assetStore';
+import { listCatalogProducts } from '../../../lib/storefront/catalogStore';
 import type { DeviceMode, ThemeConfiguration } from '../../../types/storefront';
 
 const value = await requireStoreMembership(Astro);
@@ -32,6 +35,20 @@ if (Astro.request.method === 'POST') {
     let configuration = cloneConfig(draft.configuration);
     const pageId = String(form.get('pageId') ?? 'home');
     const sectionId = String(form.get('sectionId') ?? '');
+    if (action === 'undo') {
+      draft = await undoDraft({ storeId: store.id, userId: user.id, role: membership.role }, Astro);
+      message = 'Last editor change undone.';
+    }
+    if (action === 'redo') {
+      draft = await redoDraft({ storeId: store.id, userId: user.id, role: membership.role }, Astro);
+      message = 'Editor change restored.';
+    }
+    if (action === 'upload-asset') {
+      const file = form.get('asset');
+      if (!(file instanceof File)) throw new Error('Choose an image to upload.');
+      await createStoreAsset(store.id, file, { name: String(form.get('assetName') ?? ''), alt: String(form.get('assetAlt') ?? '') }, Astro);
+      message = 'Image added to this store’s asset library.';
+    }
     if (action === 'global') {
       configuration.globalSettings = {
         ...configuration.globalSettings,
@@ -50,6 +67,7 @@ if (Astro.request.method === 'POST') {
     if (action === 'section-settings') {
       const section = configuration.pages[pageId]?.sections.find((item) => item.id === sectionId);
       if (section) {
+        if (section.settings.locked === true) throw new Error('Unlock this section before editing it.');
         section.label = String(form.get('label') ?? section.label);
         section.settings.heading = String(form.get('heading') ?? section.settings.heading ?? '');
         section.settings.body = String(form.get('body') ?? section.settings.body ?? '');
@@ -58,6 +76,19 @@ if (Astro.request.method === 'POST') {
         section.settings.alignment = String(form.get('alignment') ?? section.settings.alignment ?? 'left');
         section.settings.imagePosition = String(form.get('imagePosition') ?? section.settings.imagePosition ?? 'right');
         section.settings.columnsDesktop = Number(form.get('columnsDesktop') ?? section.settings.columnsDesktop ?? 4);
+        section.settings.productCount = Number(form.get('productCount') ?? section.settings.productCount ?? 4);
+        section.settings.productIds = form.getAll('productIds').map(String).join(',');
+        section.settings.collection = String(form.get('collection') ?? section.settings.collection ?? '');
+        section.settings.imageAssetId = String(form.get('imageAssetId') ?? section.settings.imageAssetId ?? '');
+        section.settings.imageAlt = String(form.get('imageAlt') ?? section.settings.imageAlt ?? '');
+        section.settings.backgroundColor = String(form.get('backgroundColor') ?? section.settings.backgroundColor ?? '');
+        section.settings.textColor = String(form.get('textColor') ?? section.settings.textColor ?? '');
+        section.settings.paddingTop = Number(form.get('paddingTop') ?? section.settings.paddingTop ?? 72);
+        section.settings.paddingBottom = Number(form.get('paddingBottom') ?? section.settings.paddingBottom ?? 72);
+        section.settings.headingSize = String(form.get('headingSize') ?? section.settings.headingSize ?? 'default');
+        section.settings.fullWidth = Boolean(form.get('fullWidth'));
+        section.settings.imageFit = String(form.get('imageFit') ?? section.settings.imageFit ?? 'cover');
+        section.settings.focalPoint = String(form.get('focalPoint') ?? section.settings.focalPoint ?? 'center');
         const button = section.blocks.find((block) => block.type === 'button');
         if (button) {
           button.settings.label = String(form.get('buttonLabel') ?? button.settings.label ?? '');
@@ -76,6 +107,18 @@ if (Astro.request.method === 'POST') {
       configuration = duplicateSection(configuration, pageId, sectionId);
       draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.duplicated' }, Astro);
       return Astro.redirect(`/admin/online-store/editor?device=${Astro.url.searchParams.get('device') ?? 'desktop'}&page=${pageId}&section=${configuration.pages[pageId]?.sections.at(-1)?.id ?? ''}`);
+    }
+    if (action === 'paste-section') {
+      configuration = pasteSection(configuration, pageId, String(form.get('sectionJson') ?? ''), sectionId);
+      draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.pasted' }, Astro);
+      const pastedIndex = configuration.pages[pageId]?.sections.findIndex((item) => item.id === sectionId) ?? -1;
+      return Astro.redirect(`/admin/online-store/editor?device=${Astro.url.searchParams.get('device') ?? 'desktop'}&page=${pageId}&section=${configuration.pages[pageId]?.sections.at(pastedIndex + 1)?.id ?? ''}`);
+    }
+    if (action === 'toggle-lock') {
+      const section = configuration.pages[pageId]?.sections.find((item) => item.id === sectionId);
+      if (section) section.settings.locked = section.settings.locked !== true;
+      draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.locked' }, Astro);
+      message = section?.settings.locked ? 'Section locked.' : 'Section unlocked.';
     }
     if (action === 'remove-section') {
       configuration = removeSection(configuration, pageId, sectionId);
@@ -116,95 +159,139 @@ theme = await getStoreTheme(store.id, Astro);
 draft = await getDraftRevision(store.id, Astro);
 const published = await getPublishedRevision(store.id, Astro);
 const revisions = await listThemeRevisions(store.id, Astro);
+const history = await getEditorHistoryState(store.id, Astro);
+const assets = await listStoreAssets(store.id, Astro);
+const products = await listCatalogProducts(store.id, Astro);
+const categories = [...new Set(products.map((product) => product.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 const configuration = draft!.configuration;
 const requestedDevice = Astro.url.searchParams.get('device');
 const device: DeviceMode = requestedDevice === 'tablet' || requestedDevice === 'mobile' ? requestedDevice : 'desktop';
+const requestedZoom = Astro.url.searchParams.get('zoom');
+const zoom = ['50', '75', '100'].includes(requestedZoom ?? '') ? requestedZoom! : 'fit';
 const requestedPage = Astro.url.searchParams.get('page') ?? 'home';
 const pageId = configuration.pages[requestedPage] ? requestedPage : 'home';
 const page = configuration.pages[pageId];
 const requestedSection = Astro.url.searchParams.get('section');
 const selectedSection = page.sections.find((section) => section.id === requestedSection) ?? page.sections[0];
-const editorHref = (sectionId = selectedSection?.id, selectedDevice = device, selectedPage = pageId) => `/admin/online-store/editor?device=${selectedDevice}&page=${selectedPage}${sectionId ? `&section=${sectionId}` : ''}`;
+const editorHref = (sectionId = selectedSection?.id, selectedDevice = device, selectedPage = pageId, selectedZoom = zoom) => `/admin/online-store/editor?device=${selectedDevice}&page=${selectedPage}&zoom=${selectedZoom}${sectionId ? `&section=${sectionId}` : ''}`;
+const selectedSectionJson = JSON.stringify(selectedSection ?? null).replaceAll('<', '\\u003c');
 const sectionMeta: Record<string, { category: string; description: string; icon: string }> = {
-  hero: { category: 'Hero', description: 'Large campaign message and call to action', icon: '▣' },
-  image_banner: { category: 'Hero', description: 'Full-width image-led message', icon: '▤' },
-  featured_collection: { category: 'Products', description: 'Highlight a curated collection', icon: '▦' },
-  product_grid: { category: 'Products', description: 'Flexible grid of products', icon: '▦' },
-  featured_product: { category: 'Products', description: 'Put one product in focus', icon: '◇' },
-  category_grid: { category: 'Products', description: 'Help customers browse categories', icon: '▦' },
-  collection_list: { category: 'Products', description: 'A visual list of collections', icon: '▥' },
-  rich_text: { category: 'Content', description: 'Heading and formatted supporting copy', icon: '¶' },
-  image_with_text: { category: 'Content', description: 'Pair a story with an image', icon: '◧' },
-  multi_column: { category: 'Content', description: 'Present features in columns', icon: '▥' },
-  benefits: { category: 'Social proof', description: 'Trust points and customer benefits', icon: '✓' },
-  testimonials: { category: 'Social proof', description: 'Customer quotes and reviews', icon: '“' },
-  faq: { category: 'Content', description: 'Common questions and answers', icon: '?' },
-  gallery: { category: 'Images', description: 'A responsive image gallery', icon: '▦' },
-  newsletter: { category: 'Marketing', description: 'Email signup call to action', icon: '✉' },
-  promo_banner: { category: 'Marketing', description: 'Promote an offer or campaign', icon: '★' },
-  contact_callout: { category: 'Business', description: 'Contact details and enquiry action', icon: '@' },
-  opening_hours: { category: 'Business', description: 'Show regular opening times', icon: '◷' },
-  map_location: { category: 'Business', description: 'Location and visit information', icon: '⌖' },
-  announcement: { category: 'Layout', description: 'Slim message above the header', icon: '!' },
-  divider: { category: 'Layout', description: 'Create subtle visual separation', icon: '—' },
-  spacer: { category: 'Layout', description: 'Add controlled breathing room', icon: '↕' },
+  hero: { category: 'Hero', description: 'Large campaign message and call to action', icon: 'layout' },
+  image_banner: { category: 'Hero', description: 'Full-width image-led message', icon: 'image' },
+  featured_collection: { category: 'Products', description: 'Highlight a curated collection', icon: 'grid' },
+  product_grid: { category: 'Products', description: 'Flexible grid of products', icon: 'grid' },
+  featured_product: { category: 'Products', description: 'Put one product in focus', icon: 'grid' },
+  category_grid: { category: 'Products', description: 'Help customers browse categories', icon: 'grid' },
+  collection_list: { category: 'Products', description: 'A visual list of collections', icon: 'grid' },
+  rich_text: { category: 'Content', description: 'Heading and formatted supporting copy', icon: 'type' },
+  image_with_text: { category: 'Content', description: 'Pair a story with an image', icon: 'image' },
+  multi_column: { category: 'Content', description: 'Present features in columns', icon: 'grid' },
+  benefits: { category: 'Social proof', description: 'Trust points and customer benefits', icon: 'grid' },
+  testimonials: { category: 'Social proof', description: 'Customer quotes and reviews', icon: 'quote' },
+  faq: { category: 'Content', description: 'Common questions and answers', icon: 'help' },
+  gallery: { category: 'Images', description: 'A responsive image gallery', icon: 'image' },
+  newsletter: { category: 'Marketing', description: 'Email signup call to action', icon: 'mail' },
+  promo_banner: { category: 'Marketing', description: 'Promote an offer or campaign', icon: 'layout' },
+  contact_callout: { category: 'Business', description: 'Contact details and enquiry action', icon: 'mail' },
+  opening_hours: { category: 'Business', description: 'Show regular opening times', icon: 'clock' },
+  map_location: { category: 'Business', description: 'Location and visit information', icon: 'map-pin' },
+  announcement: { category: 'Layout', description: 'Slim message above the header', icon: 'layout' },
+  divider: { category: 'Layout', description: 'Create subtle visual separation', icon: 'minus' },
+  spacer: { category: 'Layout', description: 'Add controlled breathing room', icon: 'layout' },
 };
 const addableSections = sectionLibrary.filter((type) => !['header', 'footer', 'slideshow', 'video_banner', 'before_after', 'custom_order_callout', 'social_grid', 'logo_list'].includes(type));
 const sectionCategories = [...new Set(addableSections.map((type) => sectionMeta[type]?.category ?? 'Content'))];
+const productSectionTypes = ['featured_collection', 'product_grid', 'featured_product'];
+const imageSectionTypes = ['hero', 'image_banner', 'image_with_text', 'gallery'];
+const selectedProductIds = String(selectedSection?.settings.productIds ?? '').split(',').filter(Boolean);
 ---
 <MerchantAdminLayout title={`Visual editor | ${store.name}`} store={store} user={user} membership={membership} heading="Visual editor" description="Edit the draft storefront. Saving does not publish until you choose Publish.">
-  {(message || error) && <div class:list={['builder-feedback', error && 'is-error']}>{error || message}{previewHref && <a href={previewHref} target="_blank">Open preview ↗</a>}</div>}
+  {(message || error) && <div class:list={['builder-feedback', error && 'is-error']} role={error ? 'alert' : 'status'}>{error || message}{previewHref && <a href={previewHref} target="_blank">Open preview <Icon name="external-link" size={14} /></a>}</div>}
   <section class="editor-toolbar">
-    <a class="builder-back" href="/admin/online-store" aria-label="Back to Online Store">←</a>
-    <div class="editor-context"><strong>Online store / Editor</strong><small>Draft v{draft?.version} · {published ? `Live v${published.version}` : 'Not published'}</small></div>
-    <div class="device-switcher" aria-label="Preview device">
-      {(['desktop', 'tablet', 'mobile'] as DeviceMode[]).map((mode) => <a class:list={['device-button', device === mode && 'is-active']} href={editorHref(selectedSection?.id, mode)}>{mode}</a>)}
+    <a class="builder-back" href="/admin/online-store" aria-label="Back to Online Store"><Icon name="arrow-left" /></a>
+    <div class="editor-context"><strong>{page.title || 'Storefront'}</strong><small>Draft v{draft?.version} · {published ? `Live v${published.version}` : 'Not published'}</small></div>
+    <div class="editor-history" aria-label="Edit history">
+      <form method="POST"><button class="icon-button" name="action" value="undo" disabled={!history.canUndo} aria-label="Undo last change" title="Undo (Ctrl+Z)"><Icon name="undo" /></button></form>
+      <form method="POST"><button class="icon-button" name="action" value="redo" disabled={!history.canRedo} aria-label="Redo last change" title="Redo (Ctrl+Shift+Z)"><Icon name="redo" /></button></form>
+      <button class="icon-button" type="button" data-copy-section aria-label="Copy selected section" title="Copy selected section"><Icon name="copy" /></button>
+      <form method="POST" data-paste-form>
+        <input type="hidden" name="pageId" value={pageId} />
+        <input type="hidden" name="sectionId" value={selectedSection?.id} />
+        <input type="hidden" name="sectionJson" data-section-json />
+        <button class="icon-button" name="action" value="paste-section" data-paste-section disabled aria-label="Paste section after selection" title="Paste section"><Icon name="clipboard" /></button>
+      </form>
     </div>
+    <div class="device-switcher" aria-label="Preview device">
+      {(['desktop', 'tablet', 'mobile'] as DeviceMode[]).map((mode) => <a class:list={['device-button', device === mode && 'is-active']} href={editorHref(selectedSection?.id, mode)} aria-label={`${mode} preview`} title={`${mode} preview`}><Icon name={mode === 'desktop' ? 'monitor' : mode} /></a>)}
+    </div>
+    <div class="zoom-switcher" aria-label="Preview zoom">
+      {['fit', '50', '75', '100'].map((amount) => <a class:list={['zoom-button', zoom === amount && 'is-active']} href={editorHref(selectedSection?.id, device, pageId, amount)}>{amount === 'fit' ? 'Fit' : `${amount}%`}</a>)}
+    </div>
+    <details class="shortcuts-help">
+      <summary class="icon-button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts"><Icon name="help" /></summary>
+      <div><strong>Keyboard shortcuts</strong><dl><dt><kbd>Ctrl Z</kbd></dt><dd>Undo</dd><dt><kbd>Ctrl Shift Z</kbd></dt><dd>Redo</dd><dt><kbd>Ctrl C</kbd></dt><dd>Copy section</dd><dt><kbd>Ctrl V</kbd></dt><dd>Paste section</dd><dt><kbd>Ctrl D</kbd></dt><dd>Duplicate section</dd></dl></div>
+    </details>
     <div class="builder-panel-toggles"><button class="secondary" type="button" data-toggle-panel="structure">Structure</button><button class="secondary" type="button" data-toggle-panel="inspector">Settings</button></div>
     <form method="POST" class="split">
-      <span class="save-indicator"><i></i>Draft saved</span>
+      <span class="save-indicator" aria-live="polite" data-save-status><i></i>Draft saved</span>
       <button class="secondary" name="action" value="preview">Preview draft</button>
       <button name="action" value="publish">Publish changes</button>
     </form>
   </section>
-  <section class="editor-shell">
+  <section class="editor-shell" data-selected-section={selectedSectionJson} data-store-id={store.id} data-zoom={zoom}>
     <aside class="editor-panel structure-panel">
       <div class="panel-heading"><div><p>Storefront</p><h2>Page structure</h2></div><span class="badge">{page.sections.length}</span></div>
       <form method="GET" class="field compact-field"><input type="hidden" name="device" value={device} /><label>Current page<select name="page" onchange="this.form.submit()">{Object.values(configuration.pages).map((item) => <option value={item.id} selected={item.id === pageId}>{item.title || item.id}</option>)}</select></label></form>
       <div class="section-list">
         {page.sections.map((section) => (
           <div class:list={['section-row', section.id === selectedSection?.id && 'is-selected']}>
-            <a class="section-select" href={editorHref(section.id)}><strong>{section.label}</strong>
-            <span class="muted">{section.type} · {section.visible ? 'visible' : 'hidden'}</span>
-            </a><details class="section-menu"><summary aria-label={`Actions for ${section.label}`} title="Section actions">•••</summary><div class="section-actions">
-              <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="move-up" aria-label={`Move ${section.label} up`} title="Move up">↑</button></form>
-              <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="move-down" aria-label={`Move ${section.label} down`} title="Move down">↓</button></form>
-              <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="toggle-section" aria-label={`${section.visible ? 'Hide' : 'Show'} ${section.label}`} title={section.visible ? 'Hide section' : 'Show section'}>{section.visible ? '◉' : '○'}</button></form>
-              <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="duplicate-section" aria-label={`Duplicate ${section.label}`} title="Duplicate section">⧉</button></form>
-              {!['header', 'footer'].includes(section.type) && <details class="remove-confirm"><summary class="icon-button danger-icon" aria-label={`Remove ${section.label}`} title="Remove section">×</summary><form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><span>Remove?</span><button name="action" value="remove-section">Yes</button></form></details>}
+            <a class="section-select" href={editorHref(section.id)}>
+              <span class="section-kind"><Icon name={sectionMeta[section.type]?.icon ?? 'layout'} size={16} /></span>
+              <span><strong>{section.label}</strong><small>{section.type.replaceAll('_', ' ')} · {section.visible ? 'Visible' : 'Hidden'}{section.settings.locked === true ? ' · Locked' : ''}</small></span>
+            </a>
+            <details class="section-menu"><summary aria-label={`Actions for ${section.label}`} title="Section actions"><Icon name="more" /></summary><div class="section-actions">
+              <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="move-up" disabled={section.settings.locked === true} aria-label={`Move ${section.label} up`} title="Move up"><Icon name="arrow-up" /></button></form>
+              <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="move-down" disabled={section.settings.locked === true} aria-label={`Move ${section.label} down`} title="Move down"><Icon name="arrow-down" /></button></form>
+              <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="toggle-section" aria-label={`${section.visible ? 'Hide' : 'Show'} ${section.label}`} title={section.visible ? 'Hide section' : 'Show section'}><Icon name={section.visible ? 'eye' : 'eye-off'} /></button></form>
+              <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="toggle-lock" aria-label={`${section.settings.locked === true ? 'Unlock' : 'Lock'} ${section.label}`} title={section.settings.locked === true ? 'Unlock section' : 'Lock section'}><Icon name={section.settings.locked === true ? 'unlock' : 'lock'} /></button></form>
+              <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="duplicate-section" aria-label={`Duplicate ${section.label}`} title="Duplicate section"><Icon name="duplicate" /></button></form>
+              {!['header', 'footer'].includes(section.type) && <details class="remove-confirm"><summary class="icon-button danger-icon" aria-label={`Remove ${section.label}`} title="Remove section"><Icon name="trash" /></summary><form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><span>Remove?</span><button name="action" value="remove-section">Yes</button></form></details>}
             </div></details>
           </div>
         ))}
       </div>
       <details class="section-picker">
-        <summary>＋ Add section</summary>
+        <summary><Icon name="plus" /> Add section</summary>
         <div class="section-picker-popover">
-          <div class="section-picker-heading"><div><strong>Add section</strong><small>Choose a building block for {page.title}</small></div><button type="button" data-close-picker aria-label="Close section picker">×</button></div>
-          <label class="section-search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search sections" data-section-search /></label>
-          <div class="section-library">{sectionCategories.map((category) => <section><h3>{category}</h3>{addableSections.filter((type) => (sectionMeta[type]?.category ?? 'Content') === category).map((type) => <form method="POST" data-section-option={type}><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionType" value={type} /><button name="action" value="add-section"><span>{sectionMeta[type]?.icon ?? '□'}</span><span><strong>{type.replaceAll('_', ' ')}</strong><small>{sectionMeta[type]?.description ?? 'Flexible storefront content section'}</small></span><span>＋</span></button></form>)}</section>)}</div>
+          <div class="section-picker-heading"><div><strong>Add section</strong><small>Choose a building block for {page.title}</small></div><button type="button" data-close-picker aria-label="Close section picker"><Icon name="plus" /></button></div>
+          <label class="section-search"><Icon name="search" /><input type="search" placeholder="Search sections" data-section-search /></label>
+          <div class="section-library">{sectionCategories.map((category) => <section><h3>{category}</h3>{addableSections.filter((type) => (sectionMeta[type]?.category ?? 'Content') === category).map((type) => <form method="POST" data-section-option={type}><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionType" value={type} /><button name="action" value="add-section"><span><Icon name={sectionMeta[type]?.icon ?? 'layout'} /></span><span><strong>{type.replaceAll('_', ' ')}</strong><small>{sectionMeta[type]?.description ?? 'Flexible storefront content section'}</small></span><Icon name="plus" /></button></form>)}</section>)}</div>
+        </div>
+      </details>
+      <details class="asset-library">
+        <summary><Icon name="image" /> Assets <span>{assets.length}</span></summary>
+        <div class="asset-library-body">
+          <form method="POST" enctype="multipart/form-data" class="stack">
+            <label class="field">Image file<input type="file" name="asset" accept="image/jpeg,image/png,image/webp,image/avif" required /></label>
+            <label class="field">Name<input name="assetName" maxlength="100" placeholder="Campaign banner" /></label>
+            <label class="field">Alt text<input name="assetAlt" maxlength="180" placeholder="Describe the image" /></label>
+            <button name="action" value="upload-asset">Upload image</button>
+            <small>JPG, PNG, WebP or AVIF · 4 MB maximum.</small>
+          </form>
+          {assets.length > 0 && <div class="asset-mini-grid">{assets.map((asset) => <figure><img src={`/store-assets/${store.slug}/${asset.id}`} alt={asset.alt || ''} loading="lazy" /><figcaption>{asset.name}</figcaption></figure>)}</div>}
         </div>
       </details>
     </aside>
     <div class="preview-workspace">
-      <div class="preview-label"><button type="button" data-fit-preview>Fit</button><span>{device} preview · Click a section to edit</span><a href={`/store/${store.slug}`} target="_blank">Open live ↗</a></div>
-      <div class:list={['canvas-device', device]}>
+      <div class="preview-label"><span>{device} preview · {zoom === 'fit' ? 'Fit to workspace' : `${zoom}% zoom`} · Click a section to edit</span><a href={`/store/${store.slug}`} target="_blank">Open live <Icon name="external-link" size={14} /></a></div>
+      <div class:list={['canvas-device', device, `zoom-${zoom}`]}>
         <StorefrontRenderer store={store} configuration={configuration} pageId={pageId} preview editor selectedSectionId={selectedSection?.id} />
       </div>
     </div>
     <aside class="editor-panel inspector-panel">
       <div class="panel-heading"><div><p>Inspector</p><h2>{selectedSection.label}</h2></div></div>
-      <p class="inspector-type">{selectedSection.type.replaceAll('_', ' ')} · {selectedSection.visible ? 'Visible' : 'Hidden'}</p>
-      <form method="POST" class="inspector-form">
+      <p class="inspector-type">{selectedSection.type.replaceAll('_', ' ')} · {selectedSection.visible ? 'Visible' : 'Hidden'} · {selectedSection.settings.locked === true ? 'Locked' : 'Editable'}</p>
+      <form method="POST" class="inspector-form" data-inspector-form data-locked={selectedSection.settings.locked === true ? 'true' : 'false'}>
         <input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={selectedSection.id} />
         <details open class="inspector-group"><summary>Content</summary><div>
           <label class="field">Section name<input name="label" value={selectedSection.label} /></label>
@@ -215,14 +302,34 @@ const sectionCategories = [...new Set(addableSections.map((type) => sectionMeta[
           </>}
           {selectedSection.blocks.some((block) => block.type === 'button') && <div class="nested-fields"><span>Primary button</span><label class="field">Label<input name="buttonLabel" value={String(selectedSection.blocks.find((block) => block.type === 'button')?.settings.label ?? '')} /></label><label class="field">Destination<select name="buttonHref"><option value="">No link</option>{Object.values(configuration.pages).filter((item) => item.id !== 'not_found').map((item) => <option value={item.handle} selected={selectedSection.blocks.find((block) => block.type === 'button')?.settings.href === item.handle}>{item.title}</option>)}</select></label></div>}
         </div></details>
-        {['hero','image_with_text','product_grid','category_grid','gallery','multi_column'].includes(selectedSection.type) && <details open class="inspector-group"><summary>Layout</summary><div>
+        {imageSectionTypes.includes(selectedSection.type) && <details open class="inspector-group"><summary>Image</summary><div>
+          {assets.length > 0 ? <div class="asset-picker">
+            <label class="asset-choice is-empty"><input type="radio" name="imageAssetId" value="" checked={!selectedSection.settings.imageAssetId} /><span>No image</span></label>
+            {assets.map((asset) => <label class="asset-choice"><input type="radio" name="imageAssetId" value={asset.id} checked={selectedSection.settings.imageAssetId === asset.id} /><img src={`/store-assets/${store.slug}/${asset.id}`} alt="" loading="lazy" /><span>{asset.name}</span></label>)}
+          </div> : <p class="control-empty">Upload an image in Assets to use it here.</p>}
+          <label class="field">Alt text<input name="imageAlt" value={String(selectedSection.settings.imageAlt ?? '')} placeholder="Describe the image for customers" /></label>
+          <div class="field-pair"><label class="field">Image fit<select name="imageFit"><option value="cover" selected={selectedSection.settings.imageFit !== 'contain'}>Crop to fill</option><option value="contain" selected={selectedSection.settings.imageFit === 'contain'}>Show full image</option></select></label><label class="field">Focal point<select name="focalPoint">{['center','top','bottom','left','right'].map((point) => <option value={point} selected={selectedSection.settings.focalPoint === point}>{point}</option>)}</select></label></div>
+        </div></details>}
+        {productSectionTypes.includes(selectedSection.type) && <details open class="inspector-group"><summary>Products</summary><div>
+          {selectedSection.type === 'featured_collection' && <label class="field">Collection<select name="collection"><option value="">All products</option>{categories.map((category) => <option value={category} selected={selectedSection.settings.collection === category}>{category}</option>)}</select></label>}
+          <label class="field">Products shown<input name="productCount" type="number" min="1" max="24" value={Number(selectedSection.settings.productCount ?? 4)} /></label>
+          {products.length > 0 ? <div class="product-picker">{products.map((product) => <label><input type="checkbox" name="productIds" value={product.id} checked={selectedProductIds.includes(product.id)} /><span><strong>{product.name}</strong><small>{product.category || 'Uncategorised'} · £{(product.pricePence / 100).toFixed(2)}</small></span></label>)}</div> : <div class="control-empty"><p>No products yet.</p><a href="/admin/products/new">Add your first product</a></div>}
+          <small>Leave every product unticked to use all active products.</small>
+        </div></details>}
+        <details open class="inspector-group"><summary>Layout</summary><div>
           {['hero','image_with_text'].includes(selectedSection.type) && <label class="field">Image position<select name="imagePosition"><option value="left" selected={selectedSection.settings.imagePosition === 'left'}>Left</option><option value="right" selected={selectedSection.settings.imagePosition !== 'left'}>Right</option></select></label>}
           <label class="field">Content alignment<select name="alignment"><option value="left" selected={selectedSection.settings.alignment !== 'center'}>Left</option><option value="center" selected={selectedSection.settings.alignment === 'center'}>Centre</option></select></label>
           {['product_grid','category_grid','gallery','multi_column'].includes(selectedSection.type) && <label class="field">Desktop columns<select name="columnsDesktop">{[2,3,4,5].map((count) => <option value={count} selected={Number(selectedSection.settings.columnsDesktop ?? 4) === count}>{count}</option>)}</select></label>}
-        </div></details>}
-        <div class="inspector-save"><span>Saved to draft only</span><button name="action" value="section-settings">Save changes</button></div>
+          <label class="check-field"><input type="checkbox" name="fullWidth" checked={selectedSection.settings.fullWidth === true} /><span>Use full available width</span></label>
+          <div class="field-pair"><label class="field">Top spacing<input name="paddingTop" type="range" min="0" max="160" step="8" value={Number(selectedSection.settings.paddingTop ?? 72)} /></label><label class="field">Bottom spacing<input name="paddingBottom" type="range" min="0" max="160" step="8" value={Number(selectedSection.settings.paddingBottom ?? 72)} /></label></div>
+        </div></details>
+        <details class="inspector-group"><summary>Style</summary><div>
+          <div class="field-pair"><label class="field">Background<input name="backgroundColor" type="color" value={String(selectedSection.settings.backgroundColor || configuration.globalSettings.backgroundColor)} /></label><label class="field">Text colour<input name="textColor" type="color" value={String(selectedSection.settings.textColor || '#172033')} /></label></div>
+          <label class="field">Heading size<select name="headingSize"><option value="small" selected={selectedSection.settings.headingSize === 'small'}>Small</option><option value="default" selected={!selectedSection.settings.headingSize || selectedSection.settings.headingSize === 'default'}>Default</option><option value="large" selected={selectedSection.settings.headingSize === 'large'}>Large</option></select></label>
+        </div></details>
+        <div class="inspector-save"><span data-inspector-status>Changes stay in draft</span><button name="action" value="section-settings" disabled={selectedSection.settings.locked === true}>Save changes</button></div>
       </form>
-      <a class="inspector-design-link" href="/admin/online-store/branding"><span>◐</span><span><strong>Store-wide design</strong><small>Colours, type and layout</small></span><span>→</span></a>
+      <a class="inspector-design-link" href="/admin/online-store/branding"><Icon name="palette" /><span><strong>Store-wide design</strong><small>Colours, type and layout</small></span><Icon name="chevron-right" /></a>
       <details class="legacy-design-controls"><summary>Quick design controls</summary>
       <form method="POST" class="stack">
         <label class="field">Store name<input name="storeNameDisplay" value={configuration.globalSettings.storeNameDisplay} /></label>
@@ -246,6 +353,40 @@ const sectionCategories = [...new Set(addableSections.map((type) => sectionMeta[
   <script is:inline>
     (() => {
       const shell = document.querySelector('.editor-shell');
+      const storeId = shell?.getAttribute('data-store-id');
+      const clipboardKey = storeId ? `wl:editor:clipboard:${storeId}` : '';
+      const pasteForm = document.querySelector('[data-paste-form]');
+      const pasteInput = pasteForm?.querySelector('[data-section-json]');
+      const pasteButton = pasteForm?.querySelector('[data-paste-section]');
+      const saveStatus = document.querySelector('[data-save-status]');
+      const picker = document.querySelector('.section-picker');
+
+      const setClipboard = (value) => {
+        if (!clipboardKey || !value) return;
+        sessionStorage.setItem(clipboardKey, value);
+        if (pasteInput) pasteInput.value = value;
+        if (pasteButton) pasteButton.disabled = false;
+      };
+      const readClipboard = () => clipboardKey ? sessionStorage.getItem(clipboardKey) : null;
+      const refreshPaste = () => {
+        const value = readClipboard();
+        if (pasteInput) pasteInput.value = value ?? '';
+        if (pasteButton) pasteButton.disabled = !value;
+      };
+      const copySelected = async () => {
+        const value = shell?.getAttribute('data-selected-section');
+        if (!value || value === 'null') return;
+        setClipboard(value);
+        try { await navigator.clipboard?.writeText(value); } catch {}
+        if (saveStatus) saveStatus.lastChild.textContent = 'Section copied';
+      };
+      const submitAction = (action) => {
+        const button = document.querySelector(`button[name="action"][value="${action}"]:not(:disabled)`);
+        button?.form?.requestSubmit(button);
+      };
+
+      refreshPaste();
+      document.querySelector('[data-copy-section]')?.addEventListener('click', copySelected);
       document.querySelectorAll('[data-toggle-panel]').forEach((button) => button.addEventListener('click', () => {
         const panel = button.getAttribute('data-toggle-panel');
         shell?.classList.toggle(`hide-${panel}`);
@@ -259,7 +400,6 @@ const sectionCategories = [...new Set(addableSections.map((type) => sectionMeta[
         url.searchParams.set('section', id);
         window.location.href = url.toString();
       }));
-      const picker = document.querySelector('.section-picker');
       document.querySelector('[data-close-picker]')?.addEventListener('click', () => picker?.removeAttribute('open'));
       document.querySelector('[data-section-search]')?.addEventListener('input', (event) => {
         const query = event.target.value.toLowerCase().trim();
@@ -267,11 +407,81 @@ const sectionCategories = [...new Set(addableSections.map((type) => sectionMeta[
           option.hidden = Boolean(query) && !option.getAttribute('data-section-option').replaceAll('_', ' ').includes(query);
         });
       });
-      document.querySelector('[data-fit-preview]')?.addEventListener('click', () => shell?.classList.toggle('fit-preview'));
+      const inspector = document.querySelector('[data-inspector-form]');
+      const inspectorStatus = inspector?.querySelector('[data-inspector-status]');
+      let saveTimer;
+      let saving = false;
+      let saveQueued = false;
+      const saveInspector = async () => {
+        if (saving) {
+          saveQueued = true;
+          return;
+        }
+        saving = true;
+        if (inspectorStatus) inspectorStatus.textContent = 'Saving…';
+        const body = new FormData(inspector);
+        body.append('action', 'section-settings');
+        try {
+          const response = await fetch(window.location.href, { method: 'POST', body });
+          const html = await response.text();
+          if (!response.ok || html.includes('builder-feedback is-error')) throw new Error('Save failed');
+          if (inspectorStatus) inspectorStatus.textContent = 'Saved to draft';
+          if (saveStatus) saveStatus.lastChild.textContent = 'Draft saved';
+        } catch {
+          if (inspectorStatus) inspectorStatus.textContent = 'Could not save automatically';
+        } finally {
+          saving = false;
+          if (saveQueued) {
+            saveQueued = false;
+            saveInspector();
+          }
+        }
+      };
+      inspector?.addEventListener('input', (event) => {
+        if (inspector.getAttribute('data-locked') === 'true') {
+          if (inspectorStatus) inspectorStatus.textContent = 'Unlock this section to edit it';
+          return;
+        }
+        if (inspectorStatus) inspectorStatus.textContent = 'Unsaved changes';
+        const target = event.target;
+        const selectedPreview = document.querySelector('.is-editor-section.is-editor-selected');
+        if (target?.name === 'heading') selectedPreview?.querySelector('h1,h2')?.replaceChildren(target.value);
+        if (target?.name === 'body') selectedPreview?.querySelector('p:not(.sf-eyebrow):not(.sf-announcement)')?.replaceChildren(target.value);
+        if (target?.name === 'eyebrow') selectedPreview?.querySelector('.sf-eyebrow')?.replaceChildren(target.value);
+        if (target?.name === 'text') selectedPreview?.querySelector('.sf-announcement')?.replaceChildren(target.value);
+        if (target?.name === 'buttonLabel') selectedPreview?.querySelector('.sf-button')?.replaceChildren(target.value);
+        if (target?.name === 'backgroundColor') selectedPreview?.style.setProperty('--section-background', target.value);
+        if (target?.name === 'textColor') selectedPreview?.style.setProperty('--section-text', target.value);
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(saveInspector, 900);
+      });
       document.querySelectorAll('form').forEach((form) => form.addEventListener('submit', () => {
         form.querySelectorAll('button[type="submit"], button:not([type])').forEach((button) => { button.disabled = true; });
       }));
-      document.addEventListener('keydown', (event) => { if (event.key === 'Escape') picker?.removeAttribute('open'); });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') picker?.removeAttribute('open');
+        const target = event.target;
+        const isTyping = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target?.isContentEditable;
+        if (!(event.ctrlKey || event.metaKey) || isTyping) return;
+        const key = event.key.toLowerCase();
+        if (key === 'z') {
+          event.preventDefault();
+          submitAction(event.shiftKey ? 'redo' : 'undo');
+        } else if (key === 'y') {
+          event.preventDefault();
+          submitAction('redo');
+        } else if (key === 'c') {
+          event.preventDefault();
+          copySelected();
+        } else if (key === 'v' && !pasteButton?.disabled) {
+          event.preventDefault();
+          pasteForm?.requestSubmit(pasteButton);
+        } else if (key === 'd') {
+          event.preventDefault();
+          const duplicate = document.querySelector('.section-row.is-selected button[value="duplicate-section"]');
+          duplicate?.form?.requestSubmit(duplicate);
+        }
+      });
     })();
   </script>
 </MerchantAdminLayout>

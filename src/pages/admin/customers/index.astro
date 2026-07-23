@@ -6,14 +6,9 @@ if (!value) return Astro.redirect('/login');
 const { store, user, membership } = value;
 ---
 <MerchantAdminLayout title={`Customers | ${store.name}`} store={store} user={user} membership={membership} heading="Customers" description="Customer records scoped to this store.">
-  <section class="toolbar">
-    <input class="input" type="search" placeholder="Search customers" aria-label="Search customers" style="max-width:320px" />
-    <span class="badge">0 customers</span>
-  </section>
-  <section class="table-wrap">
-    <table>
-      <thead><tr><th>Name</th><th>Email</th><th>Orders</th><th>Total spent</th><th>Last order</th><th>Action</th></tr></thead>
-      <tbody><tr><td colspan="6"><div class="empty">No store customers yet. Customer records will appear after this store begins accepting orders.</div></td></tr></tbody>
-    </table>
+  <section class="empty-state">
+    <span class="eyebrow">No customers yet</span>
+    <h2>Customer profiles will build automatically</h2>
+    <p>Profiles will appear after this store begins accepting orders, keeping each customer’s contact details and purchase history in one place.</p>
   </section>
 </MerchantAdminLayout>

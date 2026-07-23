@@ -53,15 +53,21 @@ function cleanColour(value: unknown, fallback = '') {
 function cleanSetting(settingKey: string, value: unknown): string | number | boolean {
   if (/href|url|link/i.test(settingKey)) return cleanUrl(value);
   if (/color$/i.test(settingKey)) return cleanColour(value);
-  if (settingKey === 'alignment') return value === 'center' ? 'center' : 'left';
+  if (['alignment', 'alignmentTablet', 'alignmentMobile'].includes(settingKey)) return value === 'center' ? 'center' : 'left';
   if (settingKey === 'imagePosition') return value === 'left' ? 'left' : 'right';
   if (settingKey === 'imageFit') return value === 'contain' ? 'contain' : 'cover';
+  if (settingKey === 'imageAspect') return ['auto', '1 / 1', '4 / 3', '16 / 9'].includes(String(value)) ? String(value) : 'auto';
   if (settingKey === 'focalPoint') return ['center', 'top', 'bottom', 'left', 'right'].includes(String(value)) ? String(value) : 'center';
   if (settingKey === 'headingSize') return ['small', 'default', 'large'].includes(String(value)) ? String(value) : 'default';
   if (settingKey === 'imageAssetId') return /^[a-z0-9_-]{1,80}$/i.test(String(value ?? '')) ? String(value) : '';
   if (settingKey === 'productIds') return String(value ?? '').split(',').map((item) => item.trim()).filter((item) => /^[a-z0-9_-]{1,80}$/i.test(item)).slice(0, 24).join(',');
-  if (['paddingTop', 'paddingBottom'].includes(settingKey)) return Math.min(160, Math.max(0, Number(value) || 0));
-  if (settingKey === 'columnsDesktop') return Math.min(5, Math.max(2, Number(value) || 4));
+  if (['paddingTop', 'paddingBottom', 'paddingTopTablet', 'paddingBottomTablet', 'paddingTopMobile', 'paddingBottomMobile'].includes(settingKey)) return Math.min(160, Math.max(0, Number(value) || 0));
+  if (settingKey === 'paddingHorizontal') return Math.min(80, Math.max(0, Number(value) || 0));
+  if (['columnsDesktop', 'columnsTablet', 'columnsMobile'].includes(settingKey)) return Math.min(6, Math.max(1, Number(value) || (settingKey === 'columnsMobile' ? 1 : 3)));
+  if (settingKey === 'gridGap') return Math.min(64, Math.max(0, Number(value) || 0));
+  if (settingKey === 'imageZoom') return Math.min(200, Math.max(50, Number(value) || 100));
+  if (settingKey === 'imageRadius') return Math.min(80, Math.max(0, Number(value) || 0));
+  if (settingKey === 'mediaWidth') return Math.min(75, Math.max(25, Number(value) || 45));
   if (settingKey === 'productCount') return Math.min(24, Math.max(1, Number(value) || 4));
   if (typeof value === 'boolean' || typeof value === 'number') return value;
   return cleanText(value);
@@ -327,16 +333,22 @@ export function duplicateSection(configuration: ThemeConfiguration, pageId: stri
   const clone = JSON.parse(JSON.stringify(section)) as SectionInstance;
   clone.id = id('section');
   clone.label = `${section.label} copy`;
-  clone.order = page.sections.length;
-  page.sections.push(clone);
+  clone.settings.locked = false;
+  clone.blocks = clone.blocks.map((block, order) => ({ ...block, id: id('block'), order }));
+  const sourceIndex = page.sections.findIndex((item) => item.id === sectionId);
+  page.sections.splice(sourceIndex + 1, 0, clone);
+  page.sections = page.sections.map((item, order) => ({ ...item, order }));
   return validateThemeConfiguration(configuration);
 }
 
-export function addSection(configuration: ThemeConfiguration, pageId: string, type: string) {
+export function addSection(configuration: ThemeConfiguration, pageId: string, type: string, afterSectionId?: string) {
   if (!sectionLibrary.includes(type as any)) throw new Error('Unsupported section type.');
   const page = configuration.pages[pageId];
   if (!page) throw new Error('Page not found.');
-  page.sections.push({ id: id('section'), type, label: type.replaceAll('_', ' '), visible: true, order: page.sections.length, settings: { heading: type.replaceAll('_', ' ') }, blocks: [] });
+  const section: SectionInstance = { id: id('section'), type, label: type.replaceAll('_', ' '), visible: true, order: page.sections.length, settings: { heading: type.replaceAll('_', ' ') }, blocks: [] };
+  const index = afterSectionId ? page.sections.findIndex((item) => item.id === afterSectionId) : -1;
+  page.sections.splice(index >= 0 ? index + 1 : page.sections.length, 0, section);
+  page.sections = page.sections.map((item, order) => ({ ...item, order }));
   return validateThemeConfiguration(configuration);
 }
 
@@ -360,6 +372,19 @@ export function removeSection(configuration: ThemeConfiguration, pageId: string,
   if (!section || ['header', 'footer'].includes(section.type)) throw new Error('This required section cannot be removed.');
   if (section.settings.locked === true) throw new Error('Unlock this section before removing it.');
   page.sections = page.sections.filter((item) => item.id !== sectionId).map((item, order) => ({ ...item, order }));
+  return validateThemeConfiguration(configuration);
+}
+
+export function reorderSection(configuration: ThemeConfiguration, pageId: string, sectionId: string, targetIndex: number) {
+  const page = configuration.pages[pageId];
+  if (!page) throw new Error('Page not found.');
+  const sourceIndex = page.sections.findIndex((item) => item.id === sectionId);
+  if (sourceIndex < 0) throw new Error('Section not found.');
+  if (page.sections[sourceIndex].settings.locked === true) throw new Error('Unlock this section before moving it.');
+  const boundedTarget = Math.min(page.sections.length - 1, Math.max(0, Math.round(targetIndex)));
+  const [section] = page.sections.splice(sourceIndex, 1);
+  page.sections.splice(boundedTarget, 0, section);
+  page.sections = page.sections.map((item, order) => ({ ...item, order }));
   return validateThemeConfiguration(configuration);
 }
 

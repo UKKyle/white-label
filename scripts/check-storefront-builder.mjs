@@ -10,6 +10,8 @@ const navigation = readFileSync('src/pages/admin/online-store/navigation.astro',
 const catalogue = readFileSync('src/lib/storefront/catalogStore.ts', 'utf8');
 const assets = readFileSync('src/lib/storefront/assetStore.ts', 'utf8');
 const assetRoute = readFileSync('src/pages/store-assets/[slug]/[assetId].ts', 'utf8');
+const assetApi = readFileSync('src/pages/admin/api/storefront/assets.ts', 'utf8');
+const reusableSections = readFileSync('src/lib/storefront/reusableSectionStore.ts', 'utf8');
 
 const requiredTemplates = ["key: 'editorial'", "key: 'commerce'", "key: 'studio'"];
 for (const marker of requiredTemplates) {
@@ -29,6 +31,15 @@ for (const marker of ['Page structure', 'canvas-device', 'Inspector', 'Create pr
 }
 for (const marker of ['undoDraft', 'redoDraft', 'pasteSection', 'data-copy-section', 'upload-asset', 'productIds', 'data-inspector-form']) {
   if (!editor.includes(marker)) throw new Error(`Editor interaction workflow missing ${marker}`);
+}
+for (const marker of ['visual-editor-shell', 'editor-tool-rail', 'data-layer-list', 'data-canvas-image-input', 'data-resize-handle', 'data-spacing-handle', 'contentEditable', 'reorder-section', 'save-reusable', 'nonce={Astro.locals.cspNonce}']) {
+  if (!editor.includes(marker)) throw new Error(`Visual editor workflow missing ${marker}`);
+}
+for (const marker of ['requireStoreMembership', 'sameOrigin', 'usageCount', 'deleteStoreAsset', 'updateStoreAsset']) {
+  if (!assetApi.includes(marker)) throw new Error(`Asset management API missing ${marker}`);
+}
+for (const marker of ['storeId', 'item.storeId === storeId', 'saveReusableSection', 'deleteReusableSection']) {
+  if (!reusableSections.includes(marker)) throw new Error(`Reusable section store missing ${marker}`);
 }
 
 for (const marker of ['resolveStorefrontHref', 'encodeURIComponent(store.slug)', 'homeHref']) {

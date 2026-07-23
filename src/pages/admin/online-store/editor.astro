@@ -3,10 +3,11 @@ import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
 import StorefrontRenderer from '../../../components/storefront/StorefrontRenderer.astro';
 import Icon from '../../../components/platform/Icon.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
-import { addSection, createPreviewToken, duplicateSection, getDraftRevision, getEditorHistoryState, getPublishedRevision, getStoreTheme, listThemeRevisions, moveSection, pasteSection, publishDraft, redoDraft, removeSection, rollbackPublishedRevision, saveDraft, selectTemplateForStore, undoDraft } from '../../../lib/storefront/themeStore';
+import { addSection, createPreviewToken, duplicateSection, getDraftRevision, getEditorHistoryState, getPublishedRevision, getStoreTheme, listThemeRevisions, moveSection, pasteSection, publishDraft, redoDraft, removeSection, reorderSection, rollbackPublishedRevision, saveDraft, selectTemplateForStore, undoDraft } from '../../../lib/storefront/themeStore';
 import { sectionLibrary } from '../../../lib/storefront/templates';
 import { createStoreAsset, listStoreAssets } from '../../../lib/storefront/assetStore';
 import { listCatalogProducts } from '../../../lib/storefront/catalogStore';
+import { deleteReusableSection, getReusableSection, listReusableSections, saveReusableSection } from '../../../lib/storefront/reusableSectionStore';
 import type { DeviceMode, ThemeConfiguration } from '../../../types/storefront';
 
 const value = await requireStoreMembership(Astro);
@@ -68,27 +69,17 @@ if (Astro.request.method === 'POST') {
       const section = configuration.pages[pageId]?.sections.find((item) => item.id === sectionId);
       if (section) {
         if (section.settings.locked === true) throw new Error('Unlock this section before editing it.');
+        const setString = (key: string, fallback: unknown = '') => {
+          if (form.has(key)) section.settings[key] = String(form.get(key) ?? fallback);
+        };
+        const setNumber = (key: string, fallback: unknown = 0) => {
+          if (form.has(key)) section.settings[key] = Number(form.get(key) ?? fallback);
+        };
         section.label = String(form.get('label') ?? section.label);
-        section.settings.heading = String(form.get('heading') ?? section.settings.heading ?? '');
-        section.settings.body = String(form.get('body') ?? section.settings.body ?? '');
-        section.settings.text = String(form.get('text') ?? section.settings.text ?? '');
-        section.settings.eyebrow = String(form.get('eyebrow') ?? section.settings.eyebrow ?? '');
-        section.settings.alignment = String(form.get('alignment') ?? section.settings.alignment ?? 'left');
-        section.settings.imagePosition = String(form.get('imagePosition') ?? section.settings.imagePosition ?? 'right');
-        section.settings.columnsDesktop = Number(form.get('columnsDesktop') ?? section.settings.columnsDesktop ?? 4);
-        section.settings.productCount = Number(form.get('productCount') ?? section.settings.productCount ?? 4);
-        section.settings.productIds = form.getAll('productIds').map(String).join(',');
-        section.settings.collection = String(form.get('collection') ?? section.settings.collection ?? '');
-        section.settings.imageAssetId = String(form.get('imageAssetId') ?? section.settings.imageAssetId ?? '');
-        section.settings.imageAlt = String(form.get('imageAlt') ?? section.settings.imageAlt ?? '');
-        section.settings.backgroundColor = String(form.get('backgroundColor') ?? section.settings.backgroundColor ?? '');
-        section.settings.textColor = String(form.get('textColor') ?? section.settings.textColor ?? '');
-        section.settings.paddingTop = Number(form.get('paddingTop') ?? section.settings.paddingTop ?? 72);
-        section.settings.paddingBottom = Number(form.get('paddingBottom') ?? section.settings.paddingBottom ?? 72);
-        section.settings.headingSize = String(form.get('headingSize') ?? section.settings.headingSize ?? 'default');
-        section.settings.fullWidth = Boolean(form.get('fullWidth'));
-        section.settings.imageFit = String(form.get('imageFit') ?? section.settings.imageFit ?? 'cover');
-        section.settings.focalPoint = String(form.get('focalPoint') ?? section.settings.focalPoint ?? 'center');
+        ['heading', 'body', 'text', 'eyebrow', 'alignment', 'alignmentTablet', 'alignmentMobile', 'imagePosition', 'collection', 'imageAssetId', 'imageAlt', 'backgroundColor', 'textColor', 'headingSize', 'imageFit', 'focalPoint', 'imageAspect'].forEach((key) => setString(key, section.settings[key]));
+        ['columnsDesktop', 'columnsTablet', 'columnsMobile', 'productCount', 'paddingTop', 'paddingBottom', 'paddingTopTablet', 'paddingBottomTablet', 'paddingTopMobile', 'paddingBottomMobile', 'paddingHorizontal', 'gridGap', 'imageZoom', 'imageRadius', 'mediaWidth'].forEach((key) => setNumber(key, section.settings[key]));
+        if (form.has('productIdsPresent')) section.settings.productIds = form.getAll('productIds').map(String).join(',');
+        if (form.has('fullWidthPresent')) section.settings.fullWidth = Boolean(form.get('fullWidth'));
         const button = section.blocks.find((block) => block.type === 'button');
         if (button) {
           button.settings.label = String(form.get('buttonLabel') ?? button.settings.label ?? '');
@@ -99,14 +90,18 @@ if (Astro.request.method === 'POST') {
       message = 'Section settings saved.';
     }
     if (action === 'add-section') {
-      configuration = addSection(configuration, pageId, String(form.get('sectionType') ?? 'rich_text'));
+      const afterSectionId = String(form.get('afterSectionId') ?? '');
+      configuration = addSection(configuration, pageId, String(form.get('sectionType') ?? 'rich_text'), afterSectionId || undefined);
       draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.added' }, Astro);
-      return Astro.redirect(`/admin/online-store/editor?device=${Astro.url.searchParams.get('device') ?? 'desktop'}&page=${pageId}&section=${configuration.pages[pageId]?.sections.at(-1)?.id ?? ''}`);
+      const afterIndex = configuration.pages[pageId]?.sections.findIndex((item) => item.id === afterSectionId) ?? -1;
+      const created = afterIndex >= 0 ? configuration.pages[pageId]?.sections.at(afterIndex + 1) : configuration.pages[pageId]?.sections.at(-1);
+      return Astro.redirect(`/admin/online-store/editor?device=${Astro.url.searchParams.get('device') ?? 'desktop'}&page=${pageId}&section=${created?.id ?? ''}`);
     }
     if (action === 'duplicate-section') {
+      const sourceIndex = configuration.pages[pageId]?.sections.findIndex((item) => item.id === sectionId) ?? -1;
       configuration = duplicateSection(configuration, pageId, sectionId);
       draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.duplicated' }, Astro);
-      return Astro.redirect(`/admin/online-store/editor?device=${Astro.url.searchParams.get('device') ?? 'desktop'}&page=${pageId}&section=${configuration.pages[pageId]?.sections.at(-1)?.id ?? ''}`);
+      return Astro.redirect(`/admin/online-store/editor?device=${Astro.url.searchParams.get('device') ?? 'desktop'}&page=${pageId}&section=${configuration.pages[pageId]?.sections.at(sourceIndex + 1)?.id ?? ''}`);
     }
     if (action === 'paste-section') {
       configuration = pasteSection(configuration, pageId, String(form.get('sectionJson') ?? ''), sectionId);
@@ -129,6 +124,36 @@ if (Astro.request.method === 'POST') {
       configuration = moveSection(configuration, pageId, sectionId, action === 'move-up' ? 'up' : 'down');
       draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.reordered' }, Astro);
       message = 'Section order saved.';
+    }
+    if (action === 'reorder-section') {
+      configuration = reorderSection(configuration, pageId, sectionId, Number(form.get('targetIndex') ?? 0));
+      draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.reordered' }, Astro);
+      message = 'Section order saved.';
+    }
+    if (action === 'save-reusable') {
+      const section = configuration.pages[pageId]?.sections.find((item) => item.id === sectionId);
+      if (!section) throw new Error('Select a section first.');
+      await saveReusableSection(store.id, String(form.get('reusableName') ?? section.label), section, Astro);
+      message = 'Reusable section saved.';
+    }
+    if (action === 'insert-reusable') {
+      const reusable = await getReusableSection(store.id, String(form.get('reusableId') ?? ''), Astro);
+      if (!reusable) throw new Error('Reusable section not found.');
+      configuration = pasteSection(configuration, pageId, JSON.stringify(reusable.section), sectionId || undefined);
+      draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.reusable-inserted' }, Astro);
+      message = 'Reusable section inserted.';
+    }
+    if (action === 'delete-reusable') {
+      await deleteReusableSection(store.id, String(form.get('reusableId') ?? ''), Astro);
+      message = 'Reusable section removed.';
+    }
+    if (action === 'navigation-label') {
+      const area = form.get('navigationArea') === 'footerMenu' ? 'footerMenu' : 'mainMenu';
+      const item = configuration.navigation[area].find((entry) => entry.id === String(form.get('navigationId') ?? ''));
+      if (!item) throw new Error('Navigation item not found.');
+      item.label = String(form.get('navigationLabel') ?? item.label);
+      draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'navigation.label' }, Astro);
+      message = 'Navigation label saved.';
     }
     if (action === 'toggle-section') {
       const section = configuration.pages[pageId]?.sections.find((item) => item.id === sectionId);
@@ -161,6 +186,7 @@ const published = await getPublishedRevision(store.id, Astro);
 const revisions = await listThemeRevisions(store.id, Astro);
 const history = await getEditorHistoryState(store.id, Astro);
 const assets = await listStoreAssets(store.id, Astro);
+const reusableSections = await listReusableSections(store.id, Astro);
 const products = await listCatalogProducts(store.id, Astro);
 const categories = [...new Set(products.map((product) => product.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 const configuration = draft!.configuration;
@@ -174,7 +200,9 @@ const page = configuration.pages[pageId];
 const requestedSection = Astro.url.searchParams.get('section');
 const selectedSection = page.sections.find((section) => section.id === requestedSection) ?? page.sections[0];
 const editorHref = (sectionId = selectedSection?.id, selectedDevice = device, selectedPage = pageId, selectedZoom = zoom) => `/admin/online-store/editor?device=${selectedDevice}&page=${selectedPage}&zoom=${selectedZoom}${sectionId ? `&section=${sectionId}` : ''}`;
+const toolHref = (tool: string, sectionId = selectedSection?.id) => `${editorHref(sectionId)}&tool=${tool}`;
 const selectedSectionJson = JSON.stringify(selectedSection ?? null).replaceAll('<', '\\u003c');
+const pageSectionsJson = JSON.stringify(page.sections).replaceAll('<', '\\u003c');
 const sectionMeta: Record<string, { category: string; description: string; icon: string }> = {
   hero: { category: 'Hero', description: 'Large campaign message and call to action', icon: 'layout' },
   image_banner: { category: 'Hero', description: 'Full-width image-led message', icon: 'image' },
@@ -204,6 +232,21 @@ const sectionCategories = [...new Set(addableSections.map((type) => sectionMeta[
 const productSectionTypes = ['featured_collection', 'product_grid', 'featured_product'];
 const imageSectionTypes = ['hero', 'image_banner', 'image_with_text', 'gallery'];
 const selectedProductIds = String(selectedSection?.settings.productIds ?? '').split(',').filter(Boolean);
+const requestedTool = Astro.url.searchParams.get('tool');
+const activeTool = ['pages', 'layers', 'add', 'assets', 'design', 'navigation', 'settings'].includes(requestedTool ?? '') ? requestedTool! : 'layers';
+const selectedElement = Astro.url.searchParams.get('element') ?? '';
+const assetUsage = new Map<string, string[]>();
+for (const configuredPage of Object.values(configuration.pages)) {
+  for (const section of configuredPage.sections) {
+    const assetId = String(section.settings.imageAssetId ?? '');
+    if (assetId) assetUsage.set(assetId, [...(assetUsage.get(assetId) ?? []), `${configuredPage.title} / ${section.label}`]);
+  }
+}
+for (const product of products) {
+  if (product.imageAssetId) assetUsage.set(product.imageAssetId, [...(assetUsage.get(product.imageAssetId) ?? []), `Product / ${product.name}`]);
+}
+const responsiveSuffix = device === 'desktop' ? '' : device === 'tablet' ? 'Tablet' : 'Mobile';
+const responsiveValue = (key: string, fallback: unknown) => selectedSection?.settings[`${key}${responsiveSuffix}`] ?? selectedSection?.settings[key] ?? fallback;
 ---
 <MerchantAdminLayout title={`Visual editor | ${store.name}`} store={store} user={user} membership={membership} heading="Visual editor" description="Edit the draft storefront. Saving does not publish until you choose Publish.">
   {(message || error) && <div class:list={['builder-feedback', error && 'is-error']} role={error ? 'alert' : 'status'}>{error || message}{previewHref && <a href={previewHref} target="_blank">Open preview <Icon name="external-link" size={14} /></a>}</div>}
@@ -238,7 +281,165 @@ const selectedProductIds = String(selectedSection?.settings.productIds ?? '').sp
       <button name="action" value="publish">Publish changes</button>
     </form>
   </section>
-  <section class="editor-shell" data-selected-section={selectedSectionJson} data-store-id={store.id} data-zoom={zoom}>
+  <section class="editor-shell visual-editor-shell" data-selected-section={selectedSectionJson} data-page-sections={pageSectionsJson} data-store-id={store.id} data-page-id={pageId} data-device={device} data-active-tool={activeTool} data-zoom={zoom}>
+    <div class="editor-left-dock">
+      <nav class="editor-tool-rail" aria-label="Editor tools">
+        {[
+          ['pages', 'layout', 'Pages'],
+          ['layers', 'grid', 'Layers'],
+          ['add', 'plus', 'Add'],
+          ['assets', 'image', 'Assets'],
+          ['design', 'palette', 'Design'],
+          ['navigation', 'map-pin', 'Navigation'],
+          ['settings', 'settings', 'Settings'],
+        ].map(([tool, icon, label]) => <a class:list={['editor-tool', activeTool === tool && 'is-active']} href={toolHref(tool)} data-editor-tool={tool} title={label}><Icon name={icon} /><span>{label}</span></a>)}
+      </nav>
+      <aside class="editor-panel contextual-panel">
+        <section class:list={['tool-panel', activeTool === 'pages' && 'is-active']} data-tool-panel="pages">
+          <div class="panel-heading"><div><p>Storefront</p><h2>Pages</h2></div><span class="badge">{Object.keys(configuration.pages).length}</span></div>
+          <label class="section-search"><Icon name="search" /><input type="search" placeholder="Search pages" data-page-search /></label>
+          <div class="page-list">{Object.values(configuration.pages).map((item) => <a class:list={['page-row', item.id === pageId && 'is-selected']} href={editorHref(undefined, device, item.id)} data-page-option={item.title.toLowerCase()}><span><Icon name={item.id === 'home' ? 'home' : 'layout'} /></span><span><strong>{item.title || item.id}</strong><small>{item.handle} · {item.status}</small></span></a>)}</div>
+          <a class="panel-action" href="/admin/online-store/pages"><Icon name="plus" /> Manage pages</a>
+        </section>
+
+        <section class:list={['tool-panel', activeTool === 'layers' && 'is-active']} data-tool-panel="layers">
+          <div class="panel-heading"><div><p>{page.title}</p><h2>Layers</h2></div><span class="badge">{page.sections.length}</span></div>
+          <p class="panel-hint">Drag layers to reorder. Select a layer or click anywhere on the canvas.</p>
+          <div class="section-list" data-layer-list>
+            {page.sections.map((section, index) => (
+              <div class:list={['section-row', section.id === selectedSection?.id && 'is-selected']} draggable={section.settings.locked !== true} data-layer-section={section.id} data-layer-index={index}>
+                <a class="section-select" href={`${editorHref(section.id)}&tool=layers`}>
+                  <span class="section-kind"><Icon name={sectionMeta[section.type]?.icon ?? 'layout'} size={16} /></span>
+                  <span><strong>{section.label}</strong><small>{section.type.replaceAll('_', ' ')} · {section.visible ? 'Visible' : 'Hidden'}{section.settings.locked === true ? ' · Locked' : ''}</small></span>
+                </a>
+                <details class="section-menu"><summary aria-label={`Actions for ${section.label}`}><Icon name="more" /></summary><div class="section-actions">
+                  <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="toggle-section"><Icon name={section.visible ? 'eye' : 'eye-off'} /></button></form>
+                  <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="toggle-lock"><Icon name={section.settings.locked === true ? 'unlock' : 'lock'} /></button></form>
+                  <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="duplicate-section"><Icon name="duplicate" /></button></form>
+                  {!['header', 'footer'].includes(section.type) && <form method="POST" data-confirm-submit="Remove this section?"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button danger-icon" name="action" value="remove-section"><Icon name="trash" /></button></form>}
+                </div></details>
+                <div class="layer-children">
+                  {section.settings.heading && <button type="button" data-layer-element="heading" data-layer-parent={section.id}><Icon name="type" size={13} /> Heading</button>}
+                  {section.settings.body && <button type="button" data-layer-element="body" data-layer-parent={section.id}><Icon name="type" size={13} /> Body</button>}
+                  {imageSectionTypes.includes(section.type) && <button type="button" data-layer-element="imageAssetId" data-layer-parent={section.id}><Icon name="image" size={13} /> Image</button>}
+                  {section.blocks.map((block) => <button type="button" data-layer-element={block.id} data-layer-parent={section.id}><Icon name={block.type === 'button' ? 'card' : 'layout'} size={13} /> {block.label}</button>)}
+                </div>
+              </div>
+            ))}
+          </div>
+          <button class="panel-action" type="button" data-open-tool="add"><Icon name="plus" /> Add section</button>
+        </section>
+
+        <section class:list={['tool-panel', activeTool === 'add' && 'is-active']} data-tool-panel="add">
+          <div class="panel-heading"><div><p>Library</p><h2>Add section</h2></div></div>
+          <label class="section-search"><Icon name="search" /><input type="search" placeholder="Search sections" data-section-search /></label>
+          <p class="panel-hint" data-insert-location>Adding after {selectedSection?.label ?? 'the last section'}.</p>
+          {reusableSections.length > 0 && <div class="reusable-library"><h3>Saved blocks</h3>{reusableSections.map((item) => <div class="reusable-row"><form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={selectedSection?.id} /><input type="hidden" name="reusableId" value={item.id} /><button name="action" value="insert-reusable"><Icon name="duplicate" /><span><strong>{item.name}</strong><small>{item.section.type.replaceAll('_', ' ')}</small></span></button></form><form method="POST" data-confirm-submit="Delete this saved block?"><input type="hidden" name="reusableId" value={item.id} /><button class="icon-button danger-icon" name="action" value="delete-reusable" aria-label={`Delete ${item.name}`}><Icon name="trash" /></button></form></div>)}</div>}
+          <div class="section-library">{sectionCategories.map((category) => <section><h3>{category}</h3>{addableSections.filter((type) => (sectionMeta[type]?.category ?? 'Content') === category).map((type) => <form method="POST" data-section-option={type}><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionType" value={type} /><input type="hidden" name="afterSectionId" value={selectedSection?.id} data-after-section /><button name="action" value="add-section"><span><Icon name={sectionMeta[type]?.icon ?? 'layout'} /></span><span><strong>{type.replaceAll('_', ' ')}</strong><small>{sectionMeta[type]?.description ?? 'Flexible storefront content section'}</small></span><Icon name="plus" /></button></form>)}</section>)}</div>
+        </section>
+
+        <section class:list={['tool-panel', activeTool === 'assets' && 'is-active']} data-tool-panel="assets">
+          <div class="panel-heading"><div><p>Store media</p><h2>Assets</h2></div><span class="badge" data-asset-count>{assets.length}</span></div>
+          <label class="asset-dropzone" data-asset-dropzone><Icon name="image" /><strong>Upload from your device</strong><span>Drop files here or browse · 4 MB max</span><input type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple data-asset-upload /></label>
+          <label class="section-search"><Icon name="search" /><input type="search" placeholder="Search assets" data-asset-search /></label>
+          <div class="asset-browser" data-asset-browser>
+            {assets.map((asset) => <article class="asset-card" data-asset-card={asset.id} data-asset-name={asset.name.toLowerCase()}>
+              <button type="button" class="asset-preview" data-use-asset={asset.id}><img src={`/store-assets/${store.slug}/${asset.id}`} alt={asset.alt || ''} loading="lazy" /></button>
+              <div><strong data-asset-title>{asset.name}</strong><small>{asset.width && asset.height ? `${asset.width} × ${asset.height} · ` : ''}{Math.max(1, Math.round(asset.bytes / 1024))} KB</small><small>{assetUsage.get(asset.id)?.length ?? 0} use{assetUsage.get(asset.id)?.length === 1 ? '' : 's'}</small></div>
+              <div class="asset-actions"><button type="button" data-rename-asset={asset.id}>Rename</button><button type="button" class="danger-icon" data-delete-asset={asset.id} disabled={(assetUsage.get(asset.id)?.length ?? 0) > 0}>Delete</button></div>
+            </article>)}
+          </div>
+          {!assets.length && <div class="control-empty" data-asset-empty><p>No images yet.</p><span>Upload a campaign image or product photograph.</span></div>}
+        </section>
+
+        <section class:list={['tool-panel', activeTool === 'design' && 'is-active']} data-tool-panel="design">
+          <div class="panel-heading"><div><p>Theme</p><h2>Global design</h2></div></div>
+          <form method="POST" class="stack" data-global-form>
+            <label class="field">Store name<input name="storeNameDisplay" value={configuration.globalSettings.storeNameDisplay} /></label>
+            <label class="field">Logo text<input name="logoText" value={configuration.globalSettings.logoText} maxlength="4" /></label>
+            <div class="field-pair"><label class="field">Primary<input name="primaryColor" type="color" value={configuration.globalSettings.primaryColor} /></label><label class="field">Accent<input name="accentColor" type="color" value={configuration.globalSettings.accentColor} /></label></div>
+            <label class="field">Background<input name="backgroundColor" type="color" value={configuration.globalSettings.backgroundColor} /></label>
+            <label class="field">Heading font<select name="headingFont">{['Inter','Georgia','Arial','Verdana'].map((font) => <option selected={configuration.globalSettings.headingFont === font}>{font}</option>)}</select></label>
+            <label class="field">Button radius<input name="buttonRadius" type="range" min="0" max="40" value={configuration.globalSettings.buttonRadius} /></label>
+            <label class="field">Section spacing<input name="sectionSpacing" type="range" min="16" max="160" value={configuration.globalSettings.sectionSpacing} /></label>
+            <button name="action" value="global">Save global design</button>
+          </form>
+          <a class="inspector-design-link" href="/admin/online-store/branding"><Icon name="palette" /><span><strong>Advanced branding</strong><small>Full colour and typography system</small></span><Icon name="chevron-right" /></a>
+        </section>
+
+        <section class:list={['tool-panel', activeTool === 'navigation' && 'is-active']} data-tool-panel="navigation">
+          <div class="panel-heading"><div><p>Menus</p><h2>Navigation</h2></div></div>
+          <h3 class="panel-subheading">Main menu</h3>
+          <div class="navigation-list">{configuration.navigation.mainMenu.map((item) => <form method="POST" class="navigation-row"><input type="hidden" name="navigationArea" value="mainMenu" /><input type="hidden" name="navigationId" value={item.id} /><input name="navigationLabel" value={item.label} aria-label={`${item.label} label`} /><button name="action" value="navigation-label">Save</button></form>)}</div>
+          <h3 class="panel-subheading">Footer menu</h3>
+          <div class="navigation-list">{configuration.navigation.footerMenu.map((item) => <form method="POST" class="navigation-row"><input type="hidden" name="navigationArea" value="footerMenu" /><input type="hidden" name="navigationId" value={item.id} /><input name="navigationLabel" value={item.label} aria-label={`${item.label} label`} /><button name="action" value="navigation-label">Save</button></form>)}</div>
+          <a class="panel-action" href="/admin/online-store/navigation">Manage links and destinations</a>
+        </section>
+
+        <section class:list={['tool-panel', activeTool === 'settings' && 'is-active']} data-tool-panel="settings">
+          <div class="panel-heading"><div><p>Storefront</p><h2>Settings</h2></div></div>
+          <div class="editor-summary"><span>Draft</span><strong>Version {draft?.version}</strong><small>Autosave keeps edits private until publish.</small></div>
+          <div class="editor-summary"><span>Published</span><strong>{published ? `Version ${published.version}` : 'Not published'}</strong><small>The live storefront remains unchanged while you edit.</small></div>
+          <details open class="revision-panel"><summary>Revision history</summary><form method="POST" class="stack"><label class="field">Restore published revision<select name="revisionId">{revisions.filter((revision) => revision.status === 'published').map((revision) => <option value={revision.id}>v{revision.version} · {new Date(revision.createdAt).toLocaleString('en-GB')}</option>)}</select></label><button class="secondary" name="action" value="rollback" disabled={!published}>Rollback</button></form></details>
+        </section>
+      </aside>
+    </div>
+
+    <div class="preview-workspace">
+      <div class="preview-label"><span>{device} · {zoom === 'fit' ? 'Fit to workspace' : `${zoom}%`} · Double-click text to edit</span><a href={`/store/${store.slug}`} target="_blank">Open live <Icon name="external-link" size={14} /></a></div>
+      <div class:list={['canvas-device', device, `zoom-${zoom}`]} data-canvas-device>
+        <StorefrontRenderer store={store} configuration={configuration} pageId={pageId} preview editor device={device} selectedSectionId={selectedSection?.id} />
+      </div>
+      <div class="canvas-guide" data-canvas-guide aria-hidden="true"></div>
+    </div>
+
+    <aside class="editor-panel inspector-panel">
+      <div class="panel-heading"><div><p data-inspector-kind>Inspector · {device}</p><h2 data-inspector-title>{selectedSection.label}</h2></div><span class="inspector-object-chip" data-inspector-object>{selectedElement || 'Section'}</span></div>
+      <p class="inspector-type">{selectedSection.type.replaceAll('_', ' ')} · {selectedSection.visible ? 'Visible' : 'Hidden'} · {selectedSection.settings.locked === true ? 'Locked' : 'Editable'}</p>
+      {device !== 'desktop' && <div class="responsive-notice"><Icon name={device} /><span><strong>{device} override</strong><small>Layout controls below apply only to this preview.</small></span></div>}
+      <form method="POST" class="inspector-form" data-inspector-form data-locked={selectedSection.settings.locked === true ? 'true' : 'false'}>
+        <input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={selectedSection.id} data-inspector-section-id />
+        <details open class="inspector-group"><summary>Content</summary><div>
+          <label class="field">Section name<input name="label" value={selectedSection.label} /></label>
+          <label class:list={['field', selectedSection.type !== 'announcement' && 'is-hidden']} data-applicable-types="announcement" data-field-control="text">Announcement text<input name="text" value={String(selectedSection.settings.text ?? '')} /></label>
+          <label class:list={['field', !['hero','image_with_text','image_banner'].includes(selectedSection.type) && 'is-hidden']} data-applicable-types="hero,image_with_text,image_banner" data-field-control="eyebrow">Eyebrow<input name="eyebrow" value={String(selectedSection.settings.eyebrow ?? '')} /></label>
+          <label class:list={['field', ['header','footer','divider','spacer','announcement'].includes(selectedSection.type) && 'is-hidden']} data-applicable-types="content" data-field-control="heading">Heading<input name="heading" value={String(selectedSection.settings.heading ?? '')} /></label>
+          <label class:list={['field', !['hero','image_with_text','rich_text','promo_banner','newsletter','contact_callout','custom_order_callout','image_banner'].includes(selectedSection.type) && 'is-hidden']} data-applicable-types="hero,image_with_text,rich_text,promo_banner,newsletter,contact_callout,custom_order_callout,image_banner" data-field-control="body">Supporting text<textarea name="body">{String(selectedSection.settings.body ?? '')}</textarea></label>
+          <div class:list={['nested-fields', !selectedSection.blocks.some((block) => block.type === 'button') && 'is-hidden']} data-applicable-types="button" data-field-control="buttonLabel"><span>Primary button</span><label class="field">Label<input name="buttonLabel" value={String(selectedSection.blocks.find((block) => block.type === 'button')?.settings.label ?? '')} /></label><label class="field">Destination<select name="buttonHref"><option value="">No link</option>{Object.values(configuration.pages).filter((item) => item.id !== 'not_found').map((item) => <option value={item.handle} selected={selectedSection.blocks.find((block) => block.type === 'button')?.settings.href === item.handle}>{item.title}</option>)}</select></label></div>
+        </div></details>
+        <details open class:list={['inspector-group', !imageSectionTypes.includes(selectedSection.type) && 'is-hidden']} data-applicable-types={imageSectionTypes.join(',')}><summary>Image</summary><div>
+          <button type="button" class="replace-image-button" data-replace-image><Icon name="image" /> Replace from device</button>
+          {assets.length > 0 && <div class="asset-picker"><label class="asset-choice is-empty"><input type="radio" name="imageAssetId" value="" checked={!selectedSection.settings.imageAssetId} /><span>No image</span></label>{assets.map((asset) => <label class="asset-choice"><input type="radio" name="imageAssetId" value={asset.id} checked={selectedSection.settings.imageAssetId === asset.id} /><img src={`/store-assets/${store.slug}/${asset.id}`} alt="" /><span>{asset.name}</span></label>)}</div>}
+          <label class="field">Alt text<input name="imageAlt" value={String(selectedSection.settings.imageAlt ?? '')} /></label>
+          <div class="field-pair"><label class="field">Fit<select name="imageFit"><option value="cover" selected={selectedSection.settings.imageFit !== 'contain'}>Crop to fill</option><option value="contain" selected={selectedSection.settings.imageFit === 'contain'}>Show full</option></select></label><label class="field">Focal point<select name="focalPoint">{['center','top','bottom','left','right'].map((point) => <option value={point} selected={(selectedSection.settings.focalPoint ?? 'center') === point}>{point}</option>)}</select></label></div>
+          <div class="field-pair"><label class="field">Aspect<select name="imageAspect">{['auto','1 / 1','4 / 3','16 / 9'].map((aspect) => <option value={aspect} selected={(selectedSection.settings.imageAspect ?? 'auto') === aspect}>{aspect === 'auto' ? 'Automatic' : aspect.replace(' / ', ':')}</option>)}</select></label><label class="field">Corner radius<input name="imageRadius" type="number" min="0" max="80" value={Number(selectedSection.settings.imageRadius ?? configuration.globalSettings.cardRadius)} /></label></div>
+          <label class="field range-field">Zoom <output data-output-for="imageZoom">{Number(selectedSection.settings.imageZoom ?? 100)}%</output><input name="imageZoom" type="range" min="50" max="200" value={Number(selectedSection.settings.imageZoom ?? 100)} /></label>
+        </div></details>
+        <details open class:list={['inspector-group', !productSectionTypes.includes(selectedSection.type) && 'is-hidden']} data-applicable-types={productSectionTypes.join(',')}><summary>Products</summary><div>
+          <input type="hidden" name="productIdsPresent" value="true" /><label class:list={['field', selectedSection.type !== 'featured_collection' && 'is-hidden']} data-applicable-types="featured_collection">Collection<select name="collection"><option value="">All products</option>{categories.map((category) => <option value={category} selected={selectedSection.settings.collection === category}>{category}</option>)}</select></label>
+          <label class="field">Products shown<input name="productCount" type="number" min="1" max="24" value={Number(selectedSection.settings.productCount ?? 4)} /></label>
+          {products.length > 0 ? <div class="product-picker">{products.map((product) => <label><input type="checkbox" name="productIds" value={product.id} checked={selectedProductIds.includes(product.id)} /><span><strong>{product.name}</strong><small>{product.category || 'Uncategorised'} · £{(product.pricePence / 100).toFixed(2)}</small></span></label>)}</div> : <div class="control-empty"><p>No products yet.</p><a href="/admin/products/new">Add your first product</a></div>}
+        </div></details>
+        <details open class="inspector-group"><summary>Layout</summary><div>
+          <label class:list={['field', !['hero','image_with_text'].includes(selectedSection.type) && 'is-hidden']} data-applicable-types="hero,image_with_text">Image position<select name="imagePosition"><option value="left" selected={selectedSection.settings.imagePosition === 'left'}>Left</option><option value="right" selected={selectedSection.settings.imagePosition !== 'left'}>Right</option></select></label><label class:list={['field range-field', !['hero','image_with_text'].includes(selectedSection.type) && 'is-hidden']} data-applicable-types="hero,image_with_text">Media width <output data-output-for="mediaWidth">{Number(selectedSection.settings.mediaWidth ?? 45)}%</output><input name="mediaWidth" type="range" min="25" max="75" value={Number(selectedSection.settings.mediaWidth ?? 45)} /></label>
+          <label class="field">Content alignment<select name={`alignment${responsiveSuffix}`}><option value="left" selected={responsiveValue('alignment', 'left') !== 'center'}>Left</option><option value="center" selected={responsiveValue('alignment', 'left') === 'center'}>Centre</option></select></label>
+          <label class:list={['field', !['product_grid','category_grid','gallery','multi_column','featured_collection'].includes(selectedSection.type) && 'is-hidden']} data-applicable-types="product_grid,category_grid,gallery,multi_column,featured_collection">Columns<select name={`columns${device === 'desktop' ? 'Desktop' : device === 'tablet' ? 'Tablet' : 'Mobile'}`}>{[1,2,3,4,5,6].map((count) => <option value={count} selected={Number(responsiveValue('columns', device === 'mobile' ? 1 : 3)) === count}>{count}</option>)}</select></label><label class:list={['field range-field', !['product_grid','category_grid','gallery','multi_column','featured_collection'].includes(selectedSection.type) && 'is-hidden']} data-applicable-types="product_grid,category_grid,gallery,multi_column,featured_collection">Grid gap <output data-output-for="gridGap">{Number(selectedSection.settings.gridGap ?? 16)}px</output><input name="gridGap" type="range" min="0" max="64" value={Number(selectedSection.settings.gridGap ?? 16)} /></label>
+          <input type="hidden" name="fullWidthPresent" value="true" /><label class="check-field"><input type="checkbox" name="fullWidth" checked={selectedSection.settings.fullWidth === true} /><span>Use full available width</span></label>
+          <div class="field-pair"><label class="field range-field">Top <output data-output-for={`paddingTop${responsiveSuffix}`}>{Number(responsiveValue('paddingTop', 72))}px</output><input name={`paddingTop${responsiveSuffix}`} type="range" min="0" max="160" step="4" value={Number(responsiveValue('paddingTop', 72))} /></label><label class="field range-field">Bottom <output data-output-for={`paddingBottom${responsiveSuffix}`}>{Number(responsiveValue('paddingBottom', 72))}px</output><input name={`paddingBottom${responsiveSuffix}`} type="range" min="0" max="160" step="4" value={Number(responsiveValue('paddingBottom', 72))} /></label></div>
+        </div></details>
+        <details class="inspector-group"><summary>Advanced style</summary><div>
+          <div class="field-pair"><label class="field">Background<input name="backgroundColor" type="color" value={String(selectedSection.settings.backgroundColor || configuration.globalSettings.backgroundColor)} /></label><label class="field">Text colour<input name="textColor" type="color" value={String(selectedSection.settings.textColor || '#172033')} /></label></div>
+          <label class="field">Heading size<select name="headingSize"><option value="small" selected={selectedSection.settings.headingSize === 'small'}>Small</option><option value="default" selected={!selectedSection.settings.headingSize || selectedSection.settings.headingSize === 'default'}>Default</option><option value="large" selected={selectedSection.settings.headingSize === 'large'}>Large</option></select></label>
+          <label class="field range-field">Horizontal padding <output data-output-for="paddingHorizontal">{Number(selectedSection.settings.paddingHorizontal ?? 18)}px</output><input name="paddingHorizontal" type="range" min="0" max="80" step="2" value={Number(selectedSection.settings.paddingHorizontal ?? 18)} /></label>
+          <div class="reusable-save"><label class="field">Reusable block name<input name="reusableName" value={selectedSection.label} /></label><button class="secondary" name="action" value="save-reusable">Save as reusable</button></div>
+        </div></details>
+        <div class="inspector-save"><span data-inspector-status>Changes stay in draft</span><button type="button" class="secondary is-hidden" data-retry-save>Retry</button><button name="action" value="section-settings" disabled={selectedSection.settings.locked === true}>Save changes</button></div>
+      </form>
+    </aside>
+    <form method="POST" class="is-hidden" data-reorder-form><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" /><input type="hidden" name="targetIndex" /><button name="action" value="reorder-section">Reorder</button></form>
+    <input class="is-hidden" type="file" accept="image/jpeg,image/png,image/webp,image/avif" data-canvas-image-input />
+  </section>
+  <section hidden class="legacy-editor-shell" aria-hidden="true">
     <aside class="editor-panel structure-panel">
       <div class="panel-heading"><div><p>Storefront</p><h2>Page structure</h2></div><span class="badge">{page.sections.length}</span></div>
       <form method="GET" class="field compact-field"><input type="hidden" name="device" value={device} /><label>Current page<select name="page" onchange="this.form.submit()">{Object.values(configuration.pages).map((item) => <option value={item.id} selected={item.id === pageId}>{item.title || item.id}</option>)}</select></label></form>
@@ -350,7 +551,7 @@ const selectedProductIds = String(selectedSection?.settings.productIds ?? '').sp
       </form></details>
     </aside>
   </section>
-  <script is:inline>
+  <script is:inline nonce={Astro.locals.cspNonce}>
     (() => {
       const shell = document.querySelector('.editor-shell');
       const storeId = shell?.getAttribute('data-store-id');
@@ -422,9 +623,10 @@ const selectedProductIds = String(selectedSection?.settings.productIds ?? '').sp
         const body = new FormData(inspector);
         body.append('action', 'section-settings');
         try {
-          const response = await fetch(window.location.href, { method: 'POST', body });
-          const html = await response.text();
-          if (!response.ok || html.includes('builder-feedback is-error')) throw new Error('Save failed');
+           const response = await fetch(window.location.href, { method: 'POST', body });
+           const html = await response.text();
+           const responseDocument = new DOMParser().parseFromString(html, 'text/html');
+           if (!response.ok || responseDocument.querySelector('.builder-feedback.is-error')) throw new Error('Save failed');
           if (inspectorStatus) inspectorStatus.textContent = 'Saved to draft';
           if (saveStatus) saveStatus.lastChild.textContent = 'Draft saved';
         } catch {
@@ -482,6 +684,453 @@ const selectedProductIds = String(selectedSection?.settings.productIds ?? '').sp
           duplicate?.form?.requestSubmit(duplicate);
         }
       });
+    })();
+  </script>
+  <script is:inline nonce={Astro.locals.cspNonce}>
+    (() => {
+      const shell = document.querySelector('.visual-editor-shell');
+      if (!shell) return;
+      const inspector = shell.querySelector('[data-inspector-form]');
+      const inspectorSectionId = inspector?.querySelector('[data-inspector-section-id]');
+      const inspectorTitle = shell.querySelector('[data-inspector-title]');
+      const inspectorObject = shell.querySelector('[data-inspector-object]');
+      const inspectorStatus = inspector?.querySelector('[data-inspector-status]');
+      const imageInput = shell.querySelector('[data-canvas-image-input]');
+      const retryButton = inspector?.querySelector('[data-retry-save]');
+      const sections = JSON.parse(shell.getAttribute('data-page-sections') || '[]');
+      const device = shell.getAttribute('data-device') || 'desktop';
+      let selectedId = inspectorSectionId?.value || sections[0]?.id || '';
+      let pendingImageSurface = null;
+      let dirty = false;
+      shell.setAttribute('data-interactions-ready', 'true');
+
+      const currentSection = () => sections.find((section) => section.id === selectedId);
+      const fieldName = (base) => device === 'desktop' ? base : `${base}${device[0].toUpperCase()}${device.slice(1)}`;
+      const setStatus = (text, failed = false) => {
+        if (inspectorStatus) inspectorStatus.textContent = text;
+        retryButton?.classList.toggle('is-hidden', !failed);
+      };
+      const openTool = (name) => {
+        shell.querySelectorAll('[data-editor-tool]').forEach((item) => item.classList.toggle('is-active', item.getAttribute('data-editor-tool') === name));
+        shell.querySelectorAll('[data-tool-panel]').forEach((item) => item.classList.toggle('is-active', item.getAttribute('data-tool-panel') === name));
+        const url = new URL(location.href);
+        url.searchParams.set('tool', name);
+        history.replaceState({}, '', url);
+      };
+      document.addEventListener('submit', (event) => {
+        const message = event.target?.getAttribute?.('data-confirm-submit');
+        if (message && !confirm(message)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      }, true);
+      const selectElement = (section, element = null) => {
+        const id = section?.getAttribute('data-section-id');
+        if (!id) return;
+        selectedId = id;
+        const model = currentSection();
+        shell.querySelectorAll('.is-editor-section').forEach((item) => item.classList.toggle('is-editor-selected', item === section));
+        shell.querySelectorAll('[data-layer-section]').forEach((item) => item.classList.toggle('is-selected', item.getAttribute('data-layer-section') === id));
+        shell.querySelectorAll('[data-editor-field].is-editor-element-selected').forEach((item) => item.classList.remove('is-editor-element-selected'));
+        element?.classList.add('is-editor-element-selected');
+        if (inspectorSectionId) inspectorSectionId.value = id;
+        shell.setAttribute('data-selected-section', JSON.stringify(model || null));
+        if (inspectorTitle) inspectorTitle.textContent = model?.label || section.getAttribute('data-section-label') || 'Section';
+        const field = element?.getAttribute('data-editor-field') || '';
+        if (inspectorObject) inspectorObject.textContent = field ? field.replaceAll(/([A-Z])/g, ' $1').replaceAll('_', ' ') : 'Section';
+        inspector?.querySelectorAll('[data-field-control]').forEach((control) => control.classList.toggle('is-focused-control', control.getAttribute('data-field-control') === field));
+        if (model && inspector) {
+          const values = { ...model.settings, label: model.label };
+          const buttonBlock = model.blocks?.find((block) => block.type === 'button');
+          values.buttonLabel = buttonBlock?.settings?.label ?? '';
+          values.buttonHref = buttonBlock?.settings?.href ?? '';
+          inspector.setAttribute('data-locked', model.settings.locked === true ? 'true' : 'false');
+          inspector.querySelectorAll('[data-applicable-types]').forEach((control) => {
+            const types = control.getAttribute('data-applicable-types').split(',');
+            const applies = types.includes(model.type)
+              || (types.includes('content') && !['header', 'footer', 'divider', 'spacer', 'announcement'].includes(model.type))
+              || (types.includes('button') && Boolean(buttonBlock));
+            control.classList.toggle('is-hidden', !applies);
+          });
+          inspector.querySelectorAll('input[name],textarea[name],select[name]').forEach((control) => {
+            const name = control.name;
+            if (!name || ['pageId', 'sectionId', 'productIdsPresent', 'fullWidthPresent'].includes(name)) return;
+            const baseName = name.replace(/(Tablet|Mobile)$/, '');
+            const value = values[name] ?? values[baseName];
+            if (name === 'productIds' && control.type === 'checkbox') control.checked = String(values.productIds ?? '').split(',').includes(control.value);
+            else if (name === 'imageAssetId' && control.type === 'radio') control.checked = String(values.imageAssetId ?? '') === control.value;
+            else if (value !== undefined && control.type === 'checkbox') control.checked = Boolean(value);
+            else if (value !== undefined && control.type !== 'radio') control.value = String(value);
+          });
+          inspector.querySelector('button[value="section-settings"]')?.toggleAttribute('disabled', model.settings.locked === true);
+        }
+        const url = new URL(location.href);
+        url.searchParams.set('section', id);
+        if (field) url.searchParams.set('element', field); else url.searchParams.delete('element');
+        history.replaceState({}, '', url);
+      };
+      const queueSave = () => {
+        dirty = true;
+        setStatus('Unsaved changes');
+        inspector?.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      const applyStyle = (name, value) => {
+        const section = shell.querySelector(`.is-editor-section[data-section-id="${CSS.escape(selectedId)}"]`);
+        const variables = {
+          backgroundColor: '--section-background',
+          textColor: '--section-text',
+          imageZoom: '--section-image-zoom',
+          imageRadius: '--section-image-radius',
+          mediaWidth: '--section-media-width',
+          gridGap: '--section-grid-gap',
+          paddingHorizontal: '--section-horizontal-padding',
+          paddingTop: '--section-padding-top',
+          paddingBottom: '--section-padding-bottom',
+          paddingTopTablet: '--section-padding-top-tablet',
+          paddingBottomTablet: '--section-padding-bottom-tablet',
+          paddingTopMobile: '--section-padding-top-mobile',
+          paddingBottomMobile: '--section-padding-bottom-mobile',
+        };
+        if (!section || !variables[name]) return;
+        const suffix = name === 'imageZoom' ? '' : ['backgroundColor', 'textColor'].includes(name) ? '' : (name === 'mediaWidth' ? '%' : 'px');
+        const formatted = name === 'imageZoom' ? String(Number(value) / 100) : `${value}${suffix}`;
+        section.style.setProperty(variables[name], formatted);
+      };
+
+      document.addEventListener('click', (event) => {
+        const tool = event.target.closest('[data-editor-tool],[data-open-tool]');
+        if (tool && shell.contains(tool)) {
+          event.preventDefault();
+          event.stopPropagation();
+          openTool(tool.getAttribute('data-editor-tool') || tool.getAttribute('data-open-tool'));
+          return;
+        }
+        const layerElement = event.target.closest('[data-layer-element]');
+        if (layerElement && shell.contains(layerElement)) {
+          event.preventDefault();
+          const section = shell.querySelector(`.is-editor-section[data-section-id="${CSS.escape(layerElement.getAttribute('data-layer-parent'))}"]`);
+          const field = layerElement.getAttribute('data-layer-element');
+          const element = section?.querySelector(`[data-editor-field="${CSS.escape(field)}"],[data-editor-element-id="${CSS.escape(field)}"]`);
+          if (section) selectElement(section, element);
+          element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+        const canvas = event.target.closest('[data-canvas-device]');
+        if (canvas) {
+          const section = event.target.closest('.is-editor-section');
+          if (!section) return;
+          const element = event.target.closest('[data-editor-field]');
+          if (event.target.closest('a')) event.preventDefault();
+          if (!event.target.closest('input,select,textarea')) {
+            event.stopPropagation();
+            selectElement(section, element);
+          }
+          const insert = event.target.closest('[data-insert-after]');
+          if (insert) {
+            shell.querySelectorAll('[data-after-section]').forEach((input) => { input.value = insert.getAttribute('data-insert-after'); });
+            openTool('add');
+          }
+          const action = event.target.closest('[data-canvas-action]')?.getAttribute('data-canvas-action');
+          if (action === 'copy') document.querySelector('[data-copy-section]')?.click();
+          if (action === 'duplicate') shell.querySelector(`.section-row[data-layer-section="${CSS.escape(selectedId)}"] button[value="duplicate-section"]`)?.click();
+          if (action === 'visibility') shell.querySelector(`.section-row[data-layer-section="${CSS.escape(selectedId)}"] button[value="toggle-section"]`)?.click();
+        }
+      }, true);
+
+      document.addEventListener('dblclick', (event) => {
+        const target = event.target.closest('[data-canvas-device] [data-editor-field]');
+        if (!target || !['text', 'rich-text', 'button', 'navigation'].includes(target.getAttribute('data-editor-type') || 'text')) return;
+        event.preventDefault();
+        event.stopPropagation();
+        selectElement(target.closest('.is-editor-section'), target);
+        const original = target.textContent;
+        target.contentEditable = 'true';
+        target.dataset.originalValue = original;
+        target.addEventListener('keydown', (keyEvent) => {
+          if (keyEvent.key === 'Escape') {
+            keyEvent.preventDefault();
+            target.dataset.inlineCancelled = 'true';
+            target.textContent = target.dataset.originalValue || '';
+            target.blur();
+          } else if (keyEvent.key === 'Enter' && !keyEvent.shiftKey && target.getAttribute('data-editor-type') !== 'rich-text') {
+            keyEvent.preventDefault();
+            target.blur();
+          }
+        }, { once: false });
+        target.addEventListener('blur', () => {
+          target.contentEditable = 'false';
+          if (target.dataset.inlineCancelled === 'true') {
+            delete target.dataset.inlineCancelled;
+            return;
+          }
+          const field = target.getAttribute('data-editor-field');
+          const control = inspector?.querySelector(`[name="${CSS.escape(field)}"]`);
+          if (control) {
+            control.value = target.textContent.trim();
+            queueSave();
+          } else if (field === 'navigationLabel') {
+            const body = new FormData();
+            body.append('action', 'navigation-label');
+            body.append('navigationId', target.getAttribute('data-editor-navigation-id') || '');
+            body.append('navigationArea', target.getAttribute('data-editor-navigation-area') || 'mainMenu');
+            body.append('navigationLabel', target.textContent.trim());
+            setStatus('Saving navigation…');
+            fetch(location.href, { method: 'POST', body }).then((response) => {
+              if (!response.ok) throw new Error();
+              setStatus('Saved to draft');
+            }).catch(() => setStatus('Could not save automatically', true));
+          } else if (field === 'storeNameDisplay') {
+            const globalForm = shell.querySelector('[data-global-form]');
+            const storeName = globalForm?.querySelector('[name="storeNameDisplay"]');
+            if (globalForm && storeName) {
+              storeName.value = target.textContent.trim();
+              const body = new FormData(globalForm);
+              body.append('action', 'global');
+              setStatus('Saving store name…');
+              fetch(location.href, { method: 'POST', body }).then((response) => {
+                if (!response.ok) throw new Error();
+                setStatus('Saved to draft');
+              }).catch(() => setStatus('Could not save automatically', true));
+            }
+          }
+        }, { once: true });
+        target.focus();
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        const selection = getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }, true);
+      document.addEventListener('keydown', (event) => {
+        const target = event.target.closest('[contenteditable="true"]');
+        if (!target) return;
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          target.textContent = target.dataset.originalValue || '';
+          target.blur();
+        }
+        if (event.key === 'Enter' && !event.shiftKey && target.getAttribute('data-editor-type') !== 'rich-text') {
+          event.preventDefault();
+          target.blur();
+        }
+      }, true);
+      document.addEventListener('focusout', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement) || target.getAttribute('contenteditable') !== 'true') return;
+        target.contentEditable = 'false';
+        const field = target.getAttribute('data-editor-field');
+        const control = inspector?.querySelector(`[name="${CSS.escape(field)}"]`);
+        if (control) {
+          control.value = target.textContent.trim();
+          queueSave();
+        }
+      }, true);
+
+      inspector?.addEventListener('input', (event) => {
+        const target = event.target;
+        if (!target?.name) return;
+        dirty = true;
+        const output = inspector.querySelector(`[data-output-for="${CSS.escape(target.name)}"]`);
+        if (output) output.textContent = `${target.value}${target.name === 'mediaWidth' || target.name === 'imageZoom' ? '%' : 'px'}`;
+        applyStyle(target.name, target.value);
+        const section = shell.querySelector(`.is-editor-section[data-section-id="${CSS.escape(selectedId)}"]`);
+        if (target.name.startsWith('alignment')) section?.style.setProperty(device === 'desktop' ? '--section-align' : `--section-align-${device}`, target.value);
+        if (target.name.startsWith('columns')) section?.style.setProperty(device === 'desktop' ? '--section-grid-columns' : `--section-grid-columns-${device}`, target.value);
+      });
+      retryButton?.addEventListener('click', () => {
+        retryButton.classList.add('is-hidden');
+        inspector?.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      window.addEventListener('beforeunload', (event) => {
+        if (!dirty || inspectorStatus?.textContent === 'Saved to draft') return;
+        event.preventDefault();
+      });
+      new MutationObserver(() => {
+        if (inspectorStatus?.textContent === 'Saved to draft') dirty = false;
+        if (inspectorStatus?.textContent === 'Could not save automatically') retryButton?.classList.remove('is-hidden');
+      }).observe(inspectorStatus, { childList: true, subtree: true });
+
+      const uploadAsset = async (file, applyToCanvas = false) => {
+        const body = new FormData();
+        body.append('asset', file);
+        body.append('name', file.name.replace(/\.[^.]+$/, ''));
+        setStatus('Uploading image…');
+        const response = await fetch('/admin/api/storefront/assets', { method: 'POST', body });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Upload failed');
+        if (applyToCanvas) {
+          let radio = inspector?.querySelector(`input[name="imageAssetId"][value="${CSS.escape(result.asset.id)}"]`);
+          if (!radio) {
+            radio = document.createElement('input');
+            radio.type = 'hidden';
+            radio.name = 'imageAssetId';
+            inspector.append(radio);
+          }
+          radio.value = result.asset.id;
+          radio.checked = true;
+          const surface = pendingImageSurface || shell.querySelector(`.is-editor-section[data-section-id="${CSS.escape(selectedId)}"] [data-editor-image-drop]`);
+          if (surface) {
+            const oldImage = surface.querySelector('img');
+            if (oldImage) oldImage.src = result.asset.src;
+            else {
+              const image = document.createElement('img');
+              image.src = result.asset.src;
+              image.alt = '';
+              surface.prepend(image);
+              surface.querySelector('.canvas-empty-prompt')?.remove();
+            }
+          }
+          queueSave();
+        } else {
+          location.reload();
+        }
+      };
+      shell.querySelectorAll('[data-replace-image]').forEach((button) => button.addEventListener('click', (event) => {
+        pendingImageSurface = event.target.closest('[data-editor-image-drop]') || shell.querySelector(`.is-editor-section[data-section-id="${CSS.escape(selectedId)}"] [data-editor-image-drop]`);
+        imageInput?.click();
+      }));
+      imageInput?.addEventListener('change', async () => {
+        if (!imageInput.files?.[0]) return;
+        try { await uploadAsset(imageInput.files[0], true); } catch (error) { setStatus(error.message, true); }
+        imageInput.value = '';
+      });
+      const assetUpload = shell.querySelector('[data-asset-upload]');
+      assetUpload?.addEventListener('change', async () => {
+        for (const file of assetUpload.files || []) {
+          try { await uploadAsset(file); } catch (error) { setStatus(error.message, true); break; }
+        }
+      });
+      shell.querySelector('[data-asset-dropzone]')?.addEventListener('dragover', (event) => { event.preventDefault(); event.currentTarget.classList.add('is-dragover'); });
+      shell.querySelector('[data-asset-dropzone]')?.addEventListener('dragleave', (event) => event.currentTarget.classList.remove('is-dragover'));
+      shell.querySelector('[data-asset-dropzone]')?.addEventListener('drop', async (event) => {
+        event.preventDefault();
+        event.currentTarget.classList.remove('is-dragover');
+        for (const file of event.dataTransfer.files || []) {
+          try { await uploadAsset(file); } catch (error) { setStatus(error.message, true); break; }
+        }
+      });
+      shell.querySelectorAll('[data-editor-image-drop]').forEach((surface) => {
+        surface.addEventListener('dragover', (event) => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); surface.classList.add('is-image-drop'); } });
+        surface.addEventListener('dragleave', () => surface.classList.remove('is-image-drop'));
+        surface.addEventListener('drop', async (event) => {
+          if (!event.dataTransfer?.files?.[0]) return;
+          event.preventDefault();
+          event.stopPropagation();
+          surface.classList.remove('is-image-drop');
+          selectElement(surface.closest('.is-editor-section'), surface);
+          pendingImageSurface = surface;
+          try { await uploadAsset(event.dataTransfer.files[0], true); } catch (error) { setStatus(error.message, true); }
+        });
+      });
+      shell.querySelector('[data-asset-search]')?.addEventListener('input', (event) => {
+        const query = event.target.value.toLowerCase().trim();
+        shell.querySelectorAll('[data-asset-card]').forEach((card) => { card.hidden = Boolean(query) && !card.getAttribute('data-asset-name').includes(query); });
+      });
+      shell.querySelector('[data-page-search]')?.addEventListener('input', (event) => {
+        const query = event.target.value.toLowerCase().trim();
+        shell.querySelectorAll('[data-page-option]').forEach((row) => { row.hidden = Boolean(query) && !row.getAttribute('data-page-option').includes(query); });
+      });
+      shell.querySelectorAll('[data-rename-asset]').forEach((button) => button.addEventListener('click', async () => {
+        const card = button.closest('[data-asset-card]');
+        const name = prompt('Asset name', card.querySelector('[data-asset-title]').textContent);
+        if (!name) return;
+        const response = await fetch('/admin/api/storefront/assets', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assetId: button.dataset.renameAsset, name }) });
+        const result = await response.json();
+        if (!response.ok) return setStatus(result.error || 'Rename failed', true);
+        card.querySelector('[data-asset-title]').textContent = result.asset.name;
+        card.dataset.assetName = result.asset.name.toLowerCase();
+      }));
+      shell.querySelectorAll('[data-delete-asset]').forEach((button) => button.addEventListener('click', async () => {
+        if (!confirm('Delete this unused asset?')) return;
+        const response = await fetch('/admin/api/storefront/assets', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assetId: button.dataset.deleteAsset }) });
+        const result = await response.json();
+        if (!response.ok) return setStatus(result.error || 'Delete failed', true);
+        button.closest('[data-asset-card]')?.remove();
+      }));
+      shell.querySelectorAll('[data-use-asset]').forEach((button) => button.addEventListener('click', () => {
+        const radio = inspector?.querySelector(`input[name="imageAssetId"][value="${CSS.escape(button.dataset.useAsset)}"]`);
+        if (!radio) return setStatus('Select an image section before using this asset');
+        radio.checked = true;
+        queueSave();
+      }));
+
+      let dragPayload = null;
+      shell.querySelectorAll('[data-layer-section],.is-editor-section').forEach((item) => item.addEventListener('dragstart', (event) => {
+        const section = item.matches('.is-editor-section') ? item : shell.querySelector(`.is-editor-section[data-section-id="${CSS.escape(item.dataset.layerSection)}"]`);
+        dragPayload = { kind: 'section', id: section?.dataset.sectionId };
+        event.dataTransfer.effectAllowed = 'move';
+      }));
+      shell.querySelectorAll('[data-section-option]').forEach((form) => {
+        form.draggable = true;
+        form.addEventListener('dragstart', (event) => {
+          dragPayload = { kind: 'new', type: form.dataset.sectionOption };
+          event.dataTransfer.effectAllowed = 'copy';
+        });
+      });
+      shell.querySelectorAll('[data-layer-section],.is-editor-section').forEach((target) => {
+        target.addEventListener('dragover', (event) => { if (dragPayload) { event.preventDefault(); target.classList.add('is-drop-target'); } });
+        target.addEventListener('dragleave', () => target.classList.remove('is-drop-target'));
+        target.addEventListener('drop', (event) => {
+          if (!dragPayload) return;
+          event.preventDefault();
+          event.stopPropagation();
+          target.classList.remove('is-drop-target');
+          const targetId = target.matches('.is-editor-section') ? target.dataset.sectionId : target.dataset.layerSection;
+          const targetIndex = sections.findIndex((section) => section.id === targetId);
+          if (dragPayload.kind === 'new') {
+            const form = shell.querySelector(`[data-section-option="${CSS.escape(dragPayload.type)}"]`);
+            form.querySelector('[data-after-section]').value = targetId;
+            form.requestSubmit(form.querySelector('button[value="add-section"]'));
+          } else if (dragPayload.id && dragPayload.id !== targetId) {
+            const form = shell.querySelector('[data-reorder-form]');
+            form.querySelector('[name="sectionId"]').value = dragPayload.id;
+            form.querySelector('[name="targetIndex"]').value = targetIndex;
+            form.requestSubmit(form.querySelector('button'));
+          }
+          dragPayload = null;
+        });
+      });
+
+      const beginPointerAdjust = (event, name, startValue, min, max, scale, cssVariable) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const section = event.target.closest('.is-editor-section');
+        selectElement(section, event.target.closest('[data-editor-field]'));
+        const startX = event.clientX;
+        const startY = event.clientY;
+        const vertical = name.startsWith('padding');
+        const move = (moveEvent) => {
+          const delta = vertical ? moveEvent.clientY - startY : moveEvent.clientX - startX;
+          const directed = name.includes('Top') ? -delta : delta;
+          const next = Math.round(Math.min(max, Math.max(min, startValue + directed * scale)));
+          section.style.setProperty(cssVariable, `${next}${name === 'mediaWidth' ? '%' : 'px'}`);
+          const input = inspector?.querySelector(`[name="${CSS.escape(name)}"]`);
+          if (input) {
+            input.value = next;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          shell.classList.add('is-adjusting');
+        };
+        const end = () => {
+          removeEventListener('pointermove', move);
+          removeEventListener('pointerup', end);
+          shell.classList.remove('is-adjusting');
+          queueSave();
+        };
+        addEventListener('pointermove', move);
+        addEventListener('pointerup', end, { once: true });
+      };
+      shell.querySelectorAll('[data-resize-handle="mediaWidth"]').forEach((handle) => handle.addEventListener('pointerdown', (event) => {
+        const value = Number(inspector?.querySelector('[name="mediaWidth"]')?.value || 45);
+        beginPointerAdjust(event, 'mediaWidth', value, 25, 75, .12, '--section-media-width');
+      }));
+      shell.querySelectorAll('[data-spacing-handle]').forEach((handle) => handle.addEventListener('pointerdown', (event) => {
+        const base = handle.dataset.spacingHandle;
+        const name = fieldName(base);
+        const value = Number(inspector?.querySelector(`[name="${CSS.escape(name)}"]`)?.value || 72);
+        const css = device === 'desktop' ? `--section-${base === 'paddingTop' ? 'padding-top' : 'padding-bottom'}` : `--section-${base === 'paddingTop' ? 'padding-top' : 'padding-bottom'}-${device}`;
+        beginPointerAdjust(event, name, value, 0, 160, 1, css);
+      }));
     })();
   </script>
 </MerchantAdminLayout>

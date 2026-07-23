@@ -13,8 +13,11 @@ export type StoreAsset = {
   alt: string;
   contentType: string;
   bytes: number;
+  width?: number;
+  height?: number;
   base64: string;
   createdAt: string;
+  updatedAt?: string;
 };
 
 function key(...parts: string[]) { return PREFIX + parts.join(':'); }
@@ -25,6 +28,32 @@ function matchesContentType(bytes: Uint8Array, contentType: string) {
   if (contentType === 'image/webp') return String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP';
   if (contentType === 'image/avif') return String.fromCharCode(...bytes.slice(4, 12)).includes('ftyp');
   return false;
+}
+function imageDimensions(bytes: Uint8Array, contentType: string) {
+  if (contentType === 'image/png' && bytes.length >= 24) {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    return { width: view.getUint32(16), height: view.getUint32(20) };
+  }
+  if (contentType === 'image/jpeg') {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let offset = 2;
+    while (offset + 9 < bytes.length) {
+      if (bytes[offset] !== 0xff) { offset += 1; continue; }
+      const marker = bytes[offset + 1];
+      const length = view.getUint16(offset + 2);
+      if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+        return { width: view.getUint16(offset + 7), height: view.getUint16(offset + 5) };
+      }
+      if (length < 2) break;
+      offset += length + 2;
+    }
+  }
+  if (contentType === 'image/webp' && bytes.length >= 30 && String.fromCharCode(...bytes.slice(12, 16)) === 'VP8X') {
+    const width = 1 + bytes[24] + (bytes[25] << 8) + (bytes[26] << 16);
+    const height = 1 + bytes[27] + (bytes[28] << 8) + (bytes[29] << 16);
+    return { width, height };
+  }
+  return {};
 }
 async function binding(context?: RuntimeContext): Promise<Kv | null> {
   const candidate = getAdapterEnv(context).SESSION as Kv | undefined;
@@ -56,10 +85,35 @@ export async function createStoreAsset(storeId: string, file: File, input: { nam
   if (file.size <= 0 || file.size > MAX_BYTES) throw new Error('Images must be smaller than 4 MB.');
   const bytes = new Uint8Array(await file.arrayBuffer());
   if (!matchesContentType(bytes, file.type)) throw new Error('The selected file does not match its image type.');
+  const dimensions = imageDimensions(bytes, file.type);
   let binary = ''; for (const byte of bytes) binary += String.fromCharCode(byte);
   const id = `asset_${crypto.randomUUID().replaceAll('-', '').slice(0, 18)}`;
-  const asset: StoreAsset = { id, storeId, name: clean(input.name || file.name), alt: clean(input.alt), contentType: file.type, bytes: file.size, base64: btoa(binary), createdAt: new Date().toISOString() };
+  const createdAt = new Date().toISOString();
+  const asset: StoreAsset = { id, storeId, name: clean(input.name || file.name), alt: clean(input.alt), contentType: file.type, bytes: file.size, ...dimensions, base64: btoa(binary), createdAt, updatedAt: createdAt };
   const index = await read<string[]>(key(storeId, 'index'), context) ?? [];
   await Promise.all([write(key(storeId, 'asset', id), asset, context), write(key(storeId, 'index'), [id, ...index], context)]);
   return asset;
+}
+
+export async function updateStoreAsset(storeId: string, assetId: string, input: { name?: string; alt?: string }, context?: RuntimeContext) {
+  const existing = await getStoreAsset(storeId, assetId, context);
+  if (!existing) throw new Error('Asset not found.');
+  const asset: StoreAsset = {
+    ...existing,
+    name: clean(input.name || existing.name),
+    alt: clean(input.alt ?? existing.alt),
+    updatedAt: new Date().toISOString(),
+  };
+  await write(key(storeId, 'asset', assetId), asset, context);
+  return asset;
+}
+
+export async function deleteStoreAsset(storeId: string, assetId: string, context?: RuntimeContext) {
+  const existing = await getStoreAsset(storeId, assetId, context);
+  if (!existing) throw new Error('Asset not found.');
+  const index = await read<string[]>(key(storeId, 'index'), context) ?? [];
+  const kv = await binding(context);
+  if (kv) await kv.delete(key(storeId, 'asset', assetId));
+  else memory.delete(key(storeId, 'asset', assetId));
+  await write(key(storeId, 'index'), index.filter((id) => id !== assetId), context);
 }

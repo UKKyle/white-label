@@ -148,7 +148,18 @@ export async function selectTemplateForStore(input: { storeId: string; userId: s
     createdAt: existing?.createdAt ?? now(),
     updatedAt: now(),
   };
-  const configuration = validateThemeConfiguration(createDefaultConfiguration(input.templateKey));
+  const nextConfiguration = createDefaultConfiguration(input.templateKey);
+  const existingDraft = existing ? await getDraftRevision(input.storeId, context) : null;
+  if (existingDraft) {
+    nextConfiguration.globalSettings = { ...nextConfiguration.globalSettings, ...existingDraft.configuration.globalSettings };
+    nextConfiguration.navigation = JSON.parse(JSON.stringify(existingDraft.configuration.navigation));
+    for (const [pageId, page] of Object.entries(existingDraft.configuration.pages)) {
+      if (!nextConfiguration.pages[pageId] && !['home', 'collection', 'product', 'cart', 'not_found'].includes(pageId)) {
+        nextConfiguration.pages[pageId] = JSON.parse(JSON.stringify(page));
+      }
+    }
+  }
+  const configuration = validateThemeConfiguration(nextConfiguration);
   const revision: ThemeRevision = { id: id('rev'), storeId: input.storeId, themeId: theme.id, version: await nextVersion(input.storeId, context), createdByUserId: input.userId, configuration, status: 'draft', changeType: existing ? 'template.switch' : 'template.select', createdAt: now() };
   theme.draftRevisionId = revision.id;
   await writeRevision(revision, context);
@@ -255,5 +266,45 @@ export function moveSection(configuration: ThemeConfiguration, pageId: string, s
   const [item] = page.sections.splice(index, 1);
   page.sections.splice(target, 0, item);
   page.sections = page.sections.map((section, order) => ({ ...section, order }));
+  return validateThemeConfiguration(configuration);
+}
+
+export function removeSection(configuration: ThemeConfiguration, pageId: string, sectionId: string) {
+  const page = configuration.pages[pageId];
+  if (!page) return configuration;
+  const section = page.sections.find((item) => item.id === sectionId);
+  if (!section || ['header', 'footer'].includes(section.type)) throw new Error('This required section cannot be removed.');
+  page.sections = page.sections.filter((item) => item.id !== sectionId).map((item, order) => ({ ...item, order }));
+  return validateThemeConfiguration(configuration);
+}
+
+export function createPage(configuration: ThemeConfiguration, input: { title: string; handle: string }) {
+  const title = cleanText(input.title);
+  const slug = input.handle.trim().toLowerCase().replace(/^\/+/, '').replace(/[^a-z0-9-]+/g, '-').replace(/(^-|-$)/g, '');
+  if (!title || !slug) throw new Error('Enter a page title and valid URL handle.');
+  const pageId = `page_${crypto.randomUUID().replaceAll('-', '').slice(0, 12)}`;
+  const page: PageConfiguration = {
+    id: pageId,
+    pageType: 'content',
+    title,
+    handle: `/pages/${slug}`,
+    status: 'draft',
+    sections: [{ id: id('section'), type: 'rich_text', label: 'Page content', visible: true, order: 0, settings: { heading: title, body: '' }, blocks: [] }],
+    seo: { title, description: '' },
+  };
+  configuration.pages[pageId] = page;
+  return { configuration: validateThemeConfiguration(configuration), pageId };
+}
+
+export function updatePage(configuration: ThemeConfiguration, pageId: string, input: { title: string; handle: string; status: string; seoTitle: string; seoDescription: string }) {
+  const page = configuration.pages[pageId];
+  if (!page) throw new Error('Page not found.');
+  page.title = cleanText(input.title, page.title);
+  if (!['home', 'product', 'collection', 'cart', 'not_found'].includes(page.id)) {
+    const slug = input.handle.trim().toLowerCase().replace(/^\/?(pages\/)?/, '').replace(/[^a-z0-9-]+/g, '-').replace(/(^-|-$)/g, '');
+    if (slug) page.handle = `/pages/${slug}`;
+  }
+  page.status = input.status === 'published' ? 'published' : 'draft';
+  page.seo = { title: cleanText(input.seoTitle), description: cleanText(input.seoDescription) };
   return validateThemeConfiguration(configuration);
 }

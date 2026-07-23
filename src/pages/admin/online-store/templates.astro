@@ -1,10 +1,9 @@
 ---
 import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
-import Subnav from '../../../components/platform/Subnav.astro';
+import OnlineStoreNav from '../../../components/platform/OnlineStoreNav.astro';
 import StorefrontRenderer from '../../../components/storefront/StorefrontRenderer.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
-import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
-import { listStorefrontTemplates, selectTemplateForStore } from '../../../lib/storefront/themeStore';
+import { getStoreTheme, listStorefrontTemplates, selectTemplateForStore } from '../../../lib/storefront/themeStore';
 import { createDefaultConfiguration } from '../../../lib/storefront/templates';
 import type { TemplateKey } from '../../../types/storefront';
 const value = await requireStoreMembership(Astro);
@@ -22,33 +21,26 @@ if (Astro.request.method === 'POST') {
   }
 }
 const templates = listStorefrontTemplates();
+const currentTheme = await getStoreTheme(store.id, Astro);
 ---
-<MerchantAdminLayout title={`Templates | ${store.name}`} store={store} user={user} membership={membership} heading="Templates" description="Choose one of exactly three fixed base templates.">
-  <Subnav items={merchantOnlineStoreNavigation} />
+<MerchantAdminLayout title={`Templates | ${store.name}`} store={store} user={user} membership={membership} heading="Templates" description="Choose a storefront direction designed for a different kind of shopping journey.">
+  <div class="online-store-workspace"><OnlineStoreNav /><div class="store-workspace-content">
   {error && <p class="error">{error}</p>}
-  <section class="template-grid">
+  <div class="workspace-section-heading"><div><span>Theme gallery</span><h2>Find the right starting point</h2><p>Products, customers and store settings are preserved when you change template.</p></div></div>
+  <section class="premium-template-grid">
     {templates.map((template) => (
-      <article class="card stack">
-        <div class="template-preview">
-          <span></span><span></span><span></span>
+      <article class:list={['premium-template-card', `theme-${template.key}`, currentTheme?.templateKey === template.key && 'is-current']}>
+        <div class="template-browser"><div class="template-browser-bar"><i></i><i></i><i></i></div><div class="template-browser-body"><StorefrontRenderer store={store} configuration={createDefaultConfiguration(template.key)} /></div></div>
+        <div class="template-card-copy">
+          <div><span class="template-eyebrow">{currentTheme?.templateKey === template.key ? 'Current template' : template.businessTypes.slice(0, 2).join(' · ')}</span><h2>{template.name}</h2><p>{template.description}</p></div>
+          <ul>{template.characteristics.map((item) => <li>✓ {item}</li>)}</ul>
         </div>
-        <div>
-          <h2>{template.name}</h2>
-          <p class="muted">{template.description}</p>
-        </div>
-        <p class="template-editor-note"><strong>Best for:</strong> {template.businessTypes.join(', ')}</p>
-        <ul class="checklist">{template.characteristics.map((item) => <li><span class="dot done"></span>{item}</li>)}</ul>
-        <details>
-          <summary class="button secondary">Preview template</summary>
-          <div class="canvas-frame" style="margin-top:12px">
-            <div class="canvas-device mobile"><StorefrontRenderer store={store} configuration={createDefaultConfiguration(template.key)} preview /></div>
-          </div>
-        </details>
-        <form method="POST">
+        <form method="POST" class="template-actions">
           <input type="hidden" name="templateKey" value={template.key} />
-          <button>Select {template.name}</button>
+          {currentTheme?.templateKey === template.key ? <span class="current-theme-label">Applied</span> : <details class="template-confirm"><summary class="button">Apply template</summary><div><strong>Replace homepage layout?</strong><p>Your brand, menus, custom pages and commerce data stay unchanged. Existing revisions remain available.</p><button>Confirm and apply</button></div></details>}
         </form>
       </article>
     ))}
   </section>
+  </div></div>
 </MerchantAdminLayout>

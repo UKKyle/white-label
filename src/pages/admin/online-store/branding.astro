@@ -1,8 +1,8 @@
 ---
 import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
-import Subnav from '../../../components/platform/Subnav.astro';
+import OnlineStoreNav from '../../../components/platform/OnlineStoreNav.astro';
+import StorefrontRenderer from '../../../components/storefront/StorefrontRenderer.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
-import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
 import { getDraftRevision, saveDraft } from '../../../lib/storefront/themeStore';
 const value = await requireStoreMembership(Astro);
 if (!value) return Astro.redirect('/login');
@@ -24,6 +24,13 @@ if (Astro.request.method === 'POST' && draft) {
     textColor: String(form.get('textColor') ?? configuration.globalSettings.textColor),
     mutedTextColor: String(form.get('mutedTextColor') ?? configuration.globalSettings.mutedTextColor),
     borderColor: String(form.get('borderColor') ?? configuration.globalSettings.borderColor),
+    headingFont: String(form.get('headingFont') ?? configuration.globalSettings.headingFont),
+    bodyFont: String(form.get('bodyFont') ?? configuration.globalSettings.bodyFont),
+    contentWidth: Number(form.get('contentWidth') ?? configuration.globalSettings.contentWidth),
+    sectionSpacing: Number(form.get('sectionSpacing') ?? configuration.globalSettings.sectionSpacing),
+    cardRadius: Number(form.get('cardRadius') ?? configuration.globalSettings.cardRadius),
+    buttonRadius: Number(form.get('buttonRadius') ?? configuration.globalSettings.buttonRadius),
+    productCardStyle: String(form.get('productCardStyle') ?? configuration.globalSettings.productCardStyle),
   };
   draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'branding.saved' }, Astro);
   message = 'Branding draft saved.';
@@ -31,24 +38,21 @@ if (Astro.request.method === 'POST' && draft) {
 const settings = draft?.configuration.globalSettings;
 ---
 <MerchantAdminLayout title={`Branding | ${store.name}`} store={store} user={user} membership={membership} heading="Branding" description="Store-wide visual identity for the selected template.">
-  <Subnav items={merchantOnlineStoreNavigation} />
+  <div class="online-store-workspace"><OnlineStoreNav /><div class="store-workspace-content">
   {message && <p class="notice">{message}</p>}
   {!settings ? <section class="empty">Select a template before editing branding.</section> : (
-    <form method="POST" class="card stack">
-      <div class="grid">
-        <label class="field">Store name display<input name="storeNameDisplay" value={settings.storeNameDisplay} /></label>
-        <label class="field">Logo text<input name="logoText" value={settings.logoText} maxlength="4" /></label>
-        <label class="field">Primary colour<input name="primaryColor" type="color" value={settings.primaryColor} /></label>
-        <label class="field">Secondary colour<input name="secondaryColor" type="color" value={settings.secondaryColor} /></label>
-        <label class="field">Accent colour<input name="accentColor" type="color" value={settings.accentColor} /></label>
-        <label class="field">Background<input name="backgroundColor" type="color" value={settings.backgroundColor} /></label>
-        <label class="field">Surface<input name="surfaceColor" type="color" value={settings.surfaceColor} /></label>
-        <label class="field">Text<input name="textColor" type="color" value={settings.textColor} /></label>
-        <label class="field">Muted text<input name="mutedTextColor" type="color" value={settings.mutedTextColor} /></label>
-        <label class="field">Border<input name="borderColor" type="color" value={settings.borderColor} /></label>
+    <form method="POST" class="design-workspace">
+      <div class="workspace-section-heading split-heading"><div><span>Visual system</span><h2>Design</h2><p>Set the foundation once, then refine individual sections in the builder.</p></div><button>Save design</button></div>
+      <div class="design-grid">
+        <div class="design-controls">
+          <details open class="settings-group"><summary><span>Brand</span><small>Identity and core colours</small></summary><div class="settings-group-body"><div class="form-grid"><label class="field">Store name<input name="storeNameDisplay" value={settings.storeNameDisplay} /></label><label class="field">Logo initials<input name="logoText" value={settings.logoText} maxlength="4" /></label></div><div class="colour-grid">{[['primaryColor','Primary',settings.primaryColor],['accentColor','Accent',settings.accentColor],['backgroundColor','Background',settings.backgroundColor],['textColor','Text',settings.textColor],['surfaceColor','Surface',settings.surfaceColor],['borderColor','Borders',settings.borderColor]].map(([name,label,value]) => <label class="colour-field"><input name={name} type="color" value={value} /><span><strong>{label}</strong><small>{value}</small></span></label>)}</div><input type="hidden" name="secondaryColor" value={settings.secondaryColor} /><input type="hidden" name="mutedTextColor" value={settings.mutedTextColor} /></div></details>
+          <details class="settings-group"><summary><span>Typography</span><small>Heading and body families</small></summary><div class="settings-group-body form-grid"><label class="field">Heading font<select name="headingFont">{['Inter','Georgia','Arial','Verdana'].map((font) => <option selected={settings.headingFont === font}>{font}</option>)}</select></label><label class="field">Body font<select name="bodyFont">{['Inter','Georgia','Arial','Verdana'].map((font) => <option selected={settings.bodyFont === font}>{font}</option>)}</select></label></div></details>
+          <details class="settings-group"><summary><span>Layout</span><small>Width, spacing and corners</small></summary><div class="settings-group-body"><label class="range-field">Content width <output>{settings.contentWidth}px</output><input name="contentWidth" type="range" min="900" max="1440" step="20" value={settings.contentWidth} /></label><label class="range-field">Section spacing <output>{settings.sectionSpacing}px</output><input name="sectionSpacing" type="range" min="32" max="120" step="4" value={settings.sectionSpacing} /></label><div class="form-grid"><label class="field">Card corners<input name="cardRadius" type="number" min="0" max="32" value={settings.cardRadius} /></label><label class="field">Button corners<input name="buttonRadius" type="number" min="0" max="32" value={settings.buttonRadius} /></label></div></div></details>
+          <details class="settings-group"><summary><span>Product cards</span><small>Catalogue presentation</small></summary><div class="settings-group-body"><label class="field">Card treatment<select name="productCardStyle"><option value="minimal" selected={settings.productCardStyle === 'minimal'}>Minimal</option><option value="bordered" selected={settings.productCardStyle === 'bordered'}>Bordered</option><option value="elevated" selected={settings.productCardStyle === 'elevated'}>Elevated</option></select></label></div></details>
+        </div>
+        <aside class="design-preview"><div class="design-preview-bar"><span>Live draft preview</span><a href="/admin/online-store/editor">Open builder →</a></div><div class="design-preview-frame"><StorefrontRenderer store={store} configuration={draft!.configuration} pageId="home" preview /></div></aside>
       </div>
-      <p class="template-editor-note">Colour changes save to draft only. Publish from the visual editor when ready.</p>
-      <button>Save branding draft</button>
     </form>
   )}
+  </div></div>
 </MerchantAdminLayout>

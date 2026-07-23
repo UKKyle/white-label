@@ -85,7 +85,7 @@ export const templates: StorefrontTemplateManifest[] = [
       section('announcement', 'Announcement bar', 0, { text: 'Free delivery on selected orders', alignment: 'center' }),
       section('header', 'Header', 1, { layout: 'centered_logo', sticky: true }),
       section('hero', 'Editorial hero', 2, { eyebrow: 'New season', heading: 'A considered store for modern products', body: 'Shape this area with your own campaign, collection or brand story.', mediaPosition: 'right', height: 'large' }, [
-        block('button', 'Primary button', { label: 'Shop now', href: '/store/demo/collections/all', style: 'primary' }),
+        block('button', 'Primary button', { label: 'Shop now', href: '/collections/all', style: 'primary' }),
       ]),
       section('featured_collection', 'Featured collection', 3, { heading: 'Featured collection', productCount: 4, layout: 'editorial_grid' }),
       section('image_with_text', 'Image and text', 4, { heading: 'Designed around the details', body: 'Use this section for craft, process, materials or a seasonal story.', imagePosition: 'left' }),
@@ -148,7 +148,7 @@ export function getTemplate(key: TemplateKey) {
   return templates.find((template) => template.key === key) ?? null;
 }
 
-export function createDefaultConfiguration(templateKey: TemplateKey) {
+export function createDefaultConfiguration(templateKey: TemplateKey): import('../../types/storefront').ThemeConfiguration {
   const template = getTemplate(templateKey);
   if (!template) throw new Error('Unknown template');
   return {
@@ -161,6 +161,9 @@ export function createDefaultConfiguration(templateKey: TemplateKey) {
       product: { id: 'product', pageType: 'product' as const, title: 'Product detail', handle: '/products/sample', status: 'draft' as const, sections: [section('featured_product', 'Product detail', 0, { heading: 'Product detail', layout: 'gallery_left' })] },
       cart: { id: 'cart', pageType: 'cart' as const, title: 'Cart', handle: '/cart', status: 'draft' as const, sections: [section('rich_text', 'Cart foundation', 0, { heading: 'Your cart', body: 'Cart line items and checkout handoff render here.' })] },
       contact: { id: 'contact', pageType: 'contact' as const, title: 'Contact', handle: '/contact', status: 'draft' as const, sections: [section('contact_callout', 'Contact', 0, { heading: 'Contact us', body: 'Add store contact details and response expectations.' })] },
+      about: { id: 'about', pageType: 'content' as const, title: 'About', handle: '/pages/about', status: 'draft' as const, sections: [section('image_with_text', 'Our story', 0, { heading: 'Our story', body: 'Introduce the people and purpose behind your store.', imagePosition: 'left' })] },
+      privacy: { id: 'privacy', pageType: 'policy' as const, title: 'Privacy', handle: '/policies/privacy', status: 'draft' as const, sections: [section('rich_text', 'Privacy policy', 0, { heading: 'Privacy policy', body: 'Add your store privacy policy before publishing.' })] },
+      terms: { id: 'terms', pageType: 'policy' as const, title: 'Terms', handle: '/policies/terms', status: 'draft' as const, sections: [section('rich_text', 'Terms', 0, { heading: 'Terms and conditions', body: 'Add your store terms before publishing.' })] },
       not_found: { id: 'not_found', pageType: 'not_found' as const, title: 'Page not found', handle: '/404', status: 'draft' as const, sections: [section('rich_text', 'Not found', 0, { heading: 'Page not found', body: 'Help customers return to shopping.' })] },
     },
     navigation: {

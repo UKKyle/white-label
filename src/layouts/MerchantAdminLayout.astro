@@ -13,6 +13,8 @@ const { title = 'Merchant admin | White Label', store, user, membership, eyebrow
   description?: string;
 };
 const pathname = Astro.url.pathname;
+const isStoreWorkspace = pathname.startsWith('/admin/online-store');
+const isStoreBuilder = pathname === '/admin/online-store/editor';
 ---
 <PlatformLayout title={title}>
   <div class="dashboard-shell">
@@ -31,8 +33,8 @@ const pathname = Astro.url.pathname;
       </nav>
       <a class="sidebar-link sidebar-signout" href="/admin/logout">Sign out</a>
     </aside>
-    <main class="dashboard-main">
-      <header class="dashboard-header">
+    <main class:list={['dashboard-main', isStoreWorkspace && 'store-dashboard-main', isStoreBuilder && 'builder-dashboard-main']}>
+      <header class:list={['dashboard-header', isStoreBuilder && 'builder-page-header']}>
         <div>
           <p class="eyebrow">{eyebrow}</p>
           <h1>{heading}</h1>

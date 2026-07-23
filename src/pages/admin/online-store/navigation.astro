@@ -1,8 +1,7 @@
 ---
 import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
-import Subnav from '../../../components/platform/Subnav.astro';
+import OnlineStoreNav from '../../../components/platform/OnlineStoreNav.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
-import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
 import { getDraftRevision, saveDraft } from '../../../lib/storefront/themeStore';
 const value = await requireStoreMembership(Astro);
 if (!value) return Astro.redirect('/login');
@@ -12,45 +11,50 @@ let message = '';
 if (Astro.request.method === 'POST' && draft) {
   const form = await Astro.request.formData();
   const configuration = JSON.parse(JSON.stringify(draft.configuration));
-  configuration.navigation.mainMenu = [0, 1, 2, 3].map((index) => ({
-    id: configuration.navigation.mainMenu[index]?.id ?? `main-${index}`,
-    label: String(form.get(`mainLabel${index}`) ?? '').trim(),
-    href: String(form.get(`mainHref${index}`) ?? '/'),
-    visible: Boolean(form.get(`mainVisible${index}`)),
-    order: index,
-  })).filter((item) => item.label);
-  configuration.navigation.footerMenu = [0, 1, 2, 3].map((index) => ({
-    id: configuration.navigation.footerMenu[index]?.id ?? `footer-${index}`,
-    label: String(form.get(`footerLabel${index}`) ?? '').trim(),
-    href: String(form.get(`footerHref${index}`) ?? '/'),
-    visible: Boolean(form.get(`footerVisible${index}`)),
-    order: index,
-  })).filter((item) => item.label);
+  configuration.navigation.mainMenu = [0, 1, 2, 3].map((index) => {
+    const destination = String(form.get(`mainHref${index}`) ?? '');
+    return { id: configuration.navigation.mainMenu[index]?.id ?? `main-${index}`, label: String(form.get(`mainLabel${index}`) ?? '').trim(), href: destination === '__external__' ? String(form.get(`mainExternal${index}`) ?? '') : destination, visible: Boolean(form.get(`mainVisible${index}`)), order: index };
+  }).filter((item) => item.label);
+  configuration.navigation.footerMenu = [0, 1, 2, 3].map((index) => {
+    const destination = String(form.get(`footerHref${index}`) ?? '');
+    return { id: configuration.navigation.footerMenu[index]?.id ?? `footer-${index}`, label: String(form.get(`footerLabel${index}`) ?? '').trim(), href: destination === '__external__' ? String(form.get(`footerExternal${index}`) ?? '') : destination, visible: Boolean(form.get(`footerVisible${index}`)), order: index };
+  }).filter((item) => item.label);
   draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'navigation.saved' }, Astro);
   message = 'Navigation draft saved.';
 }
 const config = draft?.configuration;
+const destinations = config ? [
+  ...Object.values(config.pages).filter((page) => page.id !== 'not_found').map((page) => ({ label: page.title, href: page.handle })),
+  { label: 'Customer account', href: '/account' },
+  { label: 'Search', href: '/search' },
+] : [];
 ---
 <MerchantAdminLayout title={`Navigation | ${store.name}`} store={store} user={user} membership={membership} heading="Navigation" description="Manage tenant-scoped header and footer menus.">
-  <Subnav items={merchantOnlineStoreNavigation} />
+  <div class="online-store-workspace"><OnlineStoreNav /><div class="store-workspace-content">
   {message && <p class="notice">{message}</p>}
   {!config ? <section class="empty">Select a template before editing navigation.</section> : (
-    <form method="POST" class="two-col">
-      <section class="card stack">
-        <h2>Main menu</h2>
+    <form method="POST" class="navigation-workspace">
+      <div class="workspace-section-heading split-heading"><div><span>Menus</span><h2>Navigation</h2><p>Choose tenant-safe destinations for the header and footer.</p></div><button>Save navigation</button></div>
+      <section class="menu-editor">
+        <div class="menu-editor-heading"><div><h3>Main menu</h3><p>Shown in your storefront header.</p></div><span>{config.navigation.mainMenu.length} links</span></div>
         {[0, 1, 2, 3].map((index) => {
           const item = config.navigation.mainMenu[index];
-          return <div class="grid"><label class="field">Label<input name={`mainLabel${index}`} value={item?.label ?? ''} /></label><label class="field">Href<input name={`mainHref${index}`} value={item?.href ?? ''} /></label><label class="field">Visible<input name={`mainVisible${index}`} type="checkbox" checked={item?.visible ?? true} /></label></div>;
+          return <div class="menu-item-row"><span class="drag-handle" aria-hidden="true">⠿</span><label class="field">Label<input name={`mainLabel${index}`} value={item?.label ?? ''} placeholder="Link label" /></label><div><label class="field">Destination<select name={`mainHref${index}`} data-destination-select><option value="">No link</option>{destinations.map((destination) => <option value={destination.href} selected={item?.href === destination.href}>{destination.label}</option>)}<option value="__external__" selected={item?.href?.startsWith('http')}>External website</option></select></label><label class:list={['field','external-destination',!item?.href?.startsWith('http') && 'is-hidden']}>External URL<input name={`mainExternal${index}`} type="url" value={item?.href?.startsWith('http') ? item.href : ''} placeholder="https://example.com" /></label></div><label class="toggle-field"><input name={`mainVisible${index}`} type="checkbox" checked={item?.visible ?? true} /><span>Visible</span></label></div>;
         })}
       </section>
-      <section class="card stack">
-        <h2>Footer menu</h2>
+      <section class="menu-editor">
+        <div class="menu-editor-heading"><div><h3>Footer menu</h3><p>Shown at the bottom of every storefront page.</p></div><span>{config.navigation.footerMenu.length} links</span></div>
         {[0, 1, 2, 3].map((index) => {
           const item = config.navigation.footerMenu[index];
-          return <div class="grid"><label class="field">Label<input name={`footerLabel${index}`} value={item?.label ?? ''} /></label><label class="field">Href<input name={`footerHref${index}`} value={item?.href ?? ''} /></label><label class="field">Visible<input name={`footerVisible${index}`} type="checkbox" checked={item?.visible ?? true} /></label></div>;
+          return <div class="menu-item-row"><span class="drag-handle" aria-hidden="true">⠿</span><label class="field">Label<input name={`footerLabel${index}`} value={item?.label ?? ''} placeholder="Link label" /></label><div><label class="field">Destination<select name={`footerHref${index}`} data-destination-select><option value="">No link</option>{destinations.map((destination) => <option value={destination.href} selected={item?.href === destination.href}>{destination.label}</option>)}<option value="__external__" selected={item?.href?.startsWith('http')}>External website</option></select></label><label class:list={['field','external-destination',!item?.href?.startsWith('http') && 'is-hidden']}>External URL<input name={`footerExternal${index}`} type="url" value={item?.href?.startsWith('http') ? item.href : ''} placeholder="https://example.com" /></label></div><label class="toggle-field"><input name={`footerVisible${index}`} type="checkbox" checked={item?.visible ?? true} /><span>Visible</span></label></div>;
         })}
-        <button>Save navigation</button>
       </section>
     </form>
   )}
+  </div></div>
+  <script is:inline>
+    document.querySelectorAll('[data-destination-select]').forEach((select) => select.addEventListener('change', () => {
+      select.closest('div')?.querySelector('.external-destination')?.classList.toggle('is-hidden', select.value !== '__external__');
+    }));
+  </script>
 </MerchantAdminLayout>

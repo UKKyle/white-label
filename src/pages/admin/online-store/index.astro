@@ -1,8 +1,7 @@
 ---
 import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
-import Subnav from '../../../components/platform/Subnav.astro';
+import OnlineStoreNav from '../../../components/platform/OnlineStoreNav.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
-import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
 import { getDraftRevision, getPublishedRevision, getStoreTheme, listThemeRevisions } from '../../../lib/storefront/themeStore';
 const value = await requireStoreMembership(Astro);
 if (!value) return Astro.redirect('/login');
@@ -11,23 +10,34 @@ const theme = await getStoreTheme(store.id, Astro);
 const draft = await getDraftRevision(store.id, Astro);
 const published = await getPublishedRevision(store.id, Astro);
 const revisions = await listThemeRevisions(store.id, Astro);
+const unpublished = Boolean(draft && (!published || draft.version > published.version));
+const checklist = [
+  { label: 'Choose a template', done: Boolean(theme), href: '/admin/online-store/templates' },
+  { label: 'Edit your homepage', done: Boolean(draft?.configuration.pages.home.sections.some((section) => section.settings.heading)), href: '/admin/online-store/editor' },
+  { label: 'Configure navigation', done: Boolean(draft?.configuration.navigation.mainMenu.length), href: '/admin/online-store/navigation' },
+  { label: 'Set your brand', done: Boolean(draft?.configuration.globalSettings.storeNameDisplay && draft.configuration.globalSettings.primaryColor), href: '/admin/online-store/branding' },
+  { label: 'Publish your storefront', done: Boolean(published), href: '/admin/online-store/editor' },
+];
+const completed = checklist.filter((item) => item.done).length;
 ---
-<MerchantAdminLayout title={`Online Store | ${store.name}`} store={store} user={user} membership={membership} heading="Online Store" description="Select a template, edit the storefront, save drafts and publish when ready.">
-  <Subnav items={merchantOnlineStoreNavigation} />
-  <section class="grid">
-    <div class="card"><h2>Selected template</h2><p class="metric">{theme?.name ?? 'None'}</p><p class="muted">{theme ? theme.templateKey : 'Choose a template to start.'}</p></div>
-    <div class="card"><h2>Draft status</h2><span class="badge warning">{draft ? `v${draft.version} saved` : 'No draft'}</span><p class="muted">{draft ? new Date(draft.createdAt).toLocaleString('en-GB') : 'Select a template to create the first draft.'}</p></div>
-    <div class="card"><h2>Published status</h2><span class:list={['badge', published && 'success']}>{published ? `v${published.version} live` : 'Unpublished'}</span><p class="muted">{published ? new Date(published.createdAt).toLocaleString('en-GB') : 'Public storefront remains disabled until publish.'}</p></div>
-    <div class="card"><h2>Revisions</h2><p class="metric">{revisions.length}</p><p class="muted">Recent versions retained for rollback.</p></div>
-  </section>
-  <section class="card" style="margin-top:16px">
-    <h2>Storefront workflow</h2>
-    <div class="grid">
-      <a class="button secondary" href="/admin/online-store/templates">Choose template</a>
-      <a class="button secondary" href="/admin/online-store/editor">Open visual editor</a>
-      <a class="button secondary" href="/admin/online-store/pages">Manage pages</a>
-      <a class="button secondary" href="/admin/online-store/navigation">Navigation</a>
-      <a class="button" href={`/store/${store.slug}`}>Open live store</a>
+<MerchantAdminLayout title={`Online Store | ${store.name}`} store={store} user={user} membership={membership} heading="Online Store" description="Design, preview and publish your customer-facing storefront.">
+  <div class="online-store-workspace">
+    <OnlineStoreNav />
+    <div class="store-workspace-content">
+      <section class="store-home-hero">
+        <div><span class:list={['status-dot', published && 'is-live']}>{published ? 'Live storefront' : 'Not published'}</span><h2>Make your storefront feel like your brand.</h2><p>Manage every customer-facing detail from one clear workspace.</p><div class="hero-actions"><a class="button" href="/admin/online-store/editor">Customise store</a>{published && <a class="button secondary" href={`/store/${store.slug}`} target="_blank">View live store ↗</a>}</div></div>
+        <div class="storefront-mini-preview"><span>{draft?.configuration.globalSettings.logoText || store.name.slice(0, 2)}</span><div><i></i><i></i><i></i></div><strong>{draft?.configuration.globalSettings.storeNameDisplay || store.name}</strong><small>{theme?.name ?? 'Choose a template'}</small></div>
+      </section>
+      <section class="store-status-grid">
+        <article><span>Storefront URL</span><strong>/store/{store.slug}</strong><small>{published ? 'Ready for customers' : 'Available after publishing'}</small></article>
+        <article><span>Current template</span><strong>{theme?.name ?? 'Not selected'}</strong><a href="/admin/online-store/templates">Browse templates →</a></article>
+        <article><span>Publishing</span><strong>{unpublished ? 'Changes waiting' : published ? 'Everything is live' : 'Not published'}</strong><small>{published ? `Last published ${new Date(published.createdAt).toLocaleString('en-GB')}` : 'Preview before going live'}</small></article>
+      </section>
+      <section class="setup-panel">
+        <div class="setup-heading"><div><span>Store setup</span><h2>{completed === checklist.length ? 'Your storefront is ready' : `${completed} of ${checklist.length} essentials complete`}</h2></div><div class="setup-progress" aria-label={`${completed} of ${checklist.length} complete`}><i style={`width:${completed / checklist.length * 100}%`}></i></div></div>
+        <div class="setup-list">{checklist.map((item) => <a href={item.href}><span class:list={['setup-check', item.done && 'is-done']}>{item.done ? '✓' : '○'}</span><span>{item.label}</span><span aria-hidden="true">→</span></a>)}</div>
+      </section>
+      <p class="workspace-footnote">{revisions.length} draft and published revision{revisions.length === 1 ? '' : 's'} retained for safe rollback.</p>
     </div>
-  </section>
+  </div>
 </MerchantAdminLayout>

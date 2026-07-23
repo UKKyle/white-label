@@ -1,6 +1,7 @@
 ---
 import type { Store } from '../../types/platform';
 import type { PageConfiguration, ThemeConfiguration } from '../../types/storefront';
+import { resolveStorefrontHref } from '../../lib/storefront/links';
 
 const { store, configuration, pageId = 'home', preview = false, selectedSectionId, editor = false } = Astro.props as {
   store: Store;
@@ -15,16 +16,18 @@ const settings = configuration.globalSettings;
 const sections = [...page.sections].filter((section) => section.visible).sort((a, b) => a.order - b.order);
 const nav = [...configuration.navigation.mainMenu].filter((item) => item.visible).sort((a, b) => a.order - b.order);
 const footer = [...configuration.navigation.footerMenu].filter((item) => item.visible).sort((a, b) => a.order - b.order);
+const homeHref = `/store/${encodeURIComponent(store.slug)}`;
+const link = (value: unknown) => resolveStorefrontHref(store.slug, value);
 ---
 <div
-  class:list={['storefront', `template-${configuration.templateKey}`, preview && 'is-preview']}
-  style={`--sf-primary:${settings.primaryColor};--sf-accent:${settings.accentColor};--sf-bg:${settings.backgroundColor};--sf-surface:${settings.surfaceColor};--sf-text:${settings.textColor};--sf-muted:${settings.mutedTextColor};--sf-border:${settings.borderColor};--sf-radius:${settings.cardRadius}px;--sf-button-radius:${settings.buttonRadius}px;--sf-spacing:${settings.sectionSpacing}px;--sf-width:${settings.contentWidth}px;`}
+  class:list={['storefront', `template-${configuration.templateKey}`, `product-card-${settings.productCardStyle}`, preview && 'is-preview']}
+  style={`--sf-primary:${settings.primaryColor};--sf-accent:${settings.accentColor};--sf-bg:${settings.backgroundColor};--sf-surface:${settings.surfaceColor};--sf-text:${settings.textColor};--sf-muted:${settings.mutedTextColor};--sf-border:${settings.borderColor};--sf-radius:${settings.cardRadius}px;--sf-button-radius:${settings.buttonRadius}px;--sf-spacing:${settings.sectionSpacing}px;--sf-width:${settings.contentWidth}px;--sf-heading-font:${settings.headingFont};--sf-body-font:${settings.bodyFont};`}
 >
   {preview && <div class="preview-banner">Draft preview</div>}
   <header class="sf-header">
-    <a class="sf-logo" href="#">{settings.logoText || store.name.slice(0, 2)}<span>{settings.storeNameDisplay || store.name}</span></a>
-    <nav>{nav.map((item) => <a href={item.href}>{item.label}</a>)}</nav>
-    <div class="sf-actions"><span>Search</span><span>Account</span><span>Cart</span></div>
+    <a class="sf-logo" href={homeHref}>{settings.logoText || store.name.slice(0, 2)}<span>{settings.storeNameDisplay || store.name}</span></a>
+    <nav>{nav.map((item) => link(item.href) && <a href={link(item.href)}>{item.label}</a>)}</nav>
+    <div class="sf-actions"><a href={`${homeHref}/search`}>Search</a><a href={`${homeHref}/account`}>Account</a><a href={`${homeHref}/cart`}>Cart</a></div>
   </header>
   <main>
     {sections.map((section) => (
@@ -37,7 +40,7 @@ const footer = [...configuration.navigation.footerMenu].filter((item) => item.vi
               <p class="sf-eyebrow">{String(section.settings.eyebrow ?? 'Featured')}</p>
               <h1>{String(section.settings.heading ?? 'Build your storefront')}</h1>
               <p>{String(section.settings.body ?? 'Add your own text in the editor.')}</p>
-              {section.blocks.filter((block) => block.visible).map((block) => block.type === 'button' && <a class="sf-button" href={String(block.settings.href ?? '#')}>{String(block.settings.label ?? 'Shop now')}</a>)}
+              {section.blocks.filter((block) => block.visible).map((block) => block.type === 'button' && link(block.settings.href) && <a class="sf-button" href={link(block.settings.href)}>{String(block.settings.label ?? 'Shop now')}</a>)}
             </div>
             <div class="sf-media" aria-label="Preview media"></div>
           </div>
@@ -66,12 +69,19 @@ const footer = [...configuration.navigation.footerMenu].filter((item) => item.vi
             </div>
           </div>
         )}
+        {['image_banner', 'video_banner', 'slideshow'].includes(section.type) && (
+          <div class="sf-visual-banner"><div><p class="sf-eyebrow">{String(section.settings.eyebrow ?? 'Featured')}</p><h2>{String(section.settings.heading ?? section.label)}</h2><p>{String(section.settings.body ?? '')}</p></div></div>
+        )}
+        {section.type === 'before_after' && <div><h2>{String(section.settings.heading ?? section.label)}</h2><div class="sf-before-after"><span>Before</span><span>After</span></div></div>}
+        {['map_location', 'opening_hours'].includes(section.type) && <div class="sf-business-info"><div><p class="sf-eyebrow">Store information</p><h2>{String(section.settings.heading ?? section.label)}</h2><p>{String(section.settings.body ?? 'Add the details customers need before they visit.')}</p></div><div class="sf-business-visual">{section.type === 'map_location' ? 'Map and directions' : 'Opening times'}</div></div>}
+        {section.type === 'divider' && <hr class="sf-divider" />}
+        {section.type === 'spacer' && <div class="sf-spacer" aria-hidden="true"></div>}
         {section.type === 'footer' && null}
       </section>
     ))}
   </main>
   <footer class="sf-footer">
     <strong>{settings.storeNameDisplay || store.name}</strong>
-    <nav>{footer.map((item) => <a href={item.href}>{item.label}</a>)}</nav>
+    <nav>{footer.map((item) => link(item.href) && <a href={link(item.href)}>{item.label}</a>)}</nav>
   </footer>
 </div>

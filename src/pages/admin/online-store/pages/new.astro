@@ -1,18 +1,36 @@
 ---
 import MerchantAdminLayout from '../../../../layouts/MerchantAdminLayout.astro';
-import Subnav from '../../../../components/platform/Subnav.astro';
+import OnlineStoreNav from '../../../../components/platform/OnlineStoreNav.astro';
 import { requireStoreMembership } from '../../../../lib/platform/auth';
-import { merchantOnlineStoreNavigation } from '../../../../lib/platform/navigation';
+import { createPage, getDraftRevision, saveDraft } from '../../../../lib/storefront/themeStore';
 const value = await requireStoreMembership(Astro);
 if (!value) return Astro.redirect('/login');
 const { store, user, membership } = value;
+let error = '';
+if (Astro.request.method === 'POST') {
+  const draft = await getDraftRevision(store.id, Astro);
+  if (!draft) error = 'Choose a template before creating a page.';
+  else {
+    try {
+      const form = await Astro.request.formData();
+      const configuration = JSON.parse(JSON.stringify(draft.configuration));
+      const created = createPage(configuration, { title: String(form.get('title') ?? ''), handle: String(form.get('handle') ?? '') });
+      await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration: created.configuration, baseVersion: draft.version, changeType: 'page.created' }, Astro);
+      return Astro.redirect(`/admin/online-store/pages/${created.pageId}`);
+    } catch (caught) { error = caught instanceof Error ? caught.message : 'Page could not be created.'; }
+  }
+}
 ---
 <MerchantAdminLayout title={`New page | ${store.name}`} store={store} user={user} membership={membership} heading="Create page" description="Page creation will use the shared section editor and tenant draft revisions.">
-  <Subnav items={merchantOnlineStoreNavigation} />
-  <section class="card stack">
-    <label class="field">Page type<select disabled><option>Standard page</option><option>About</option><option>Contact</option><option>FAQ</option><option>Landing page</option><option>Policy page</option></select></label>
-    <label class="field">Title<input disabled placeholder="Page title" /></label>
-    <p class="notice">The foundation now lists and opens theme pages. Full page creation is deferred until the tenant page mutation workflow is hardened.</p>
-    <a class="button secondary" href="/admin/online-store/pages">Back to pages</a>
-  </section>
+  <div class="online-store-workspace"><OnlineStoreNav /><div class="store-workspace-content narrow-workspace">
+    <a class="back-link" href="/admin/online-store/pages">← Back to pages</a>
+    <section class="workspace-form-card"><div class="workspace-section-heading"><span>New page</span><h2>Create a storefront page</h2><p>Start with a flexible content page, then add sections in the builder.</p></div>
+      {error && <p class="error">{error}</p>}
+      <form method="POST" class="stack">
+        <label class="field">Page title<input name="title" required placeholder="e.g. Our story" autocomplete="off" /></label>
+        <label class="field">URL handle<div class="input-prefix"><span>/pages/</span><input name="handle" required placeholder="our-story" pattern="[A-Za-z0-9 -]+" /></div><small>Use a short, readable address.</small></label>
+        <div class="form-actions"><a class="button secondary" href="/admin/online-store/pages">Cancel</a><button>Create page</button></div>
+      </form>
+    </section>
+  </div></div>
 </MerchantAdminLayout>

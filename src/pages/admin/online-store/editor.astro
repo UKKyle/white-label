@@ -1,10 +1,8 @@
 ---
 import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
-import Subnav from '../../../components/platform/Subnav.astro';
 import StorefrontRenderer from '../../../components/storefront/StorefrontRenderer.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
-import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
-import { addSection, createPreviewToken, duplicateSection, getDraftRevision, getPublishedRevision, getStoreTheme, listThemeRevisions, moveSection, publishDraft, rollbackPublishedRevision, saveDraft, selectTemplateForStore } from '../../../lib/storefront/themeStore';
+import { addSection, createPreviewToken, duplicateSection, getDraftRevision, getPublishedRevision, getStoreTheme, listThemeRevisions, moveSection, publishDraft, removeSection, rollbackPublishedRevision, saveDraft, selectTemplateForStore } from '../../../lib/storefront/themeStore';
 import { sectionLibrary } from '../../../lib/storefront/templates';
 import type { DeviceMode, ThemeConfiguration } from '../../../types/storefront';
 
@@ -56,6 +54,15 @@ if (Astro.request.method === 'POST') {
         section.settings.heading = String(form.get('heading') ?? section.settings.heading ?? '');
         section.settings.body = String(form.get('body') ?? section.settings.body ?? '');
         section.settings.text = String(form.get('text') ?? section.settings.text ?? '');
+        section.settings.eyebrow = String(form.get('eyebrow') ?? section.settings.eyebrow ?? '');
+        section.settings.alignment = String(form.get('alignment') ?? section.settings.alignment ?? 'left');
+        section.settings.imagePosition = String(form.get('imagePosition') ?? section.settings.imagePosition ?? 'right');
+        section.settings.columnsDesktop = Number(form.get('columnsDesktop') ?? section.settings.columnsDesktop ?? 4);
+        const button = section.blocks.find((block) => block.type === 'button');
+        if (button) {
+          button.settings.label = String(form.get('buttonLabel') ?? button.settings.label ?? '');
+          button.settings.href = String(form.get('buttonHref') ?? button.settings.href ?? '');
+        }
       }
       draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.settings' }, Astro);
       message = 'Section settings saved.';
@@ -63,12 +70,17 @@ if (Astro.request.method === 'POST') {
     if (action === 'add-section') {
       configuration = addSection(configuration, pageId, String(form.get('sectionType') ?? 'rich_text'));
       draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.added' }, Astro);
-      message = 'Section added.';
+      return Astro.redirect(`/admin/online-store/editor?device=${Astro.url.searchParams.get('device') ?? 'desktop'}&page=${pageId}&section=${configuration.pages[pageId]?.sections.at(-1)?.id ?? ''}`);
     }
     if (action === 'duplicate-section') {
       configuration = duplicateSection(configuration, pageId, sectionId);
       draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.duplicated' }, Astro);
-      message = 'Section duplicated.';
+      return Astro.redirect(`/admin/online-store/editor?device=${Astro.url.searchParams.get('device') ?? 'desktop'}&page=${pageId}&section=${configuration.pages[pageId]?.sections.at(-1)?.id ?? ''}`);
+    }
+    if (action === 'remove-section') {
+      configuration = removeSection(configuration, pageId, sectionId);
+      draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'section.removed' }, Astro);
+      message = 'Section removed from the draft.';
     }
     if (action === 'move-up' || action === 'move-down') {
       configuration = moveSection(configuration, pageId, sectionId, action === 'move-up' ? 'up' : 'down');
@@ -113,19 +125,46 @@ const page = configuration.pages[pageId];
 const requestedSection = Astro.url.searchParams.get('section');
 const selectedSection = page.sections.find((section) => section.id === requestedSection) ?? page.sections[0];
 const editorHref = (sectionId = selectedSection?.id, selectedDevice = device, selectedPage = pageId) => `/admin/online-store/editor?device=${selectedDevice}&page=${selectedPage}${sectionId ? `&section=${sectionId}` : ''}`;
+const sectionMeta: Record<string, { category: string; description: string; icon: string }> = {
+  hero: { category: 'Hero', description: 'Large campaign message and call to action', icon: '▣' },
+  image_banner: { category: 'Hero', description: 'Full-width image-led message', icon: '▤' },
+  featured_collection: { category: 'Products', description: 'Highlight a curated collection', icon: '▦' },
+  product_grid: { category: 'Products', description: 'Flexible grid of products', icon: '▦' },
+  featured_product: { category: 'Products', description: 'Put one product in focus', icon: '◇' },
+  category_grid: { category: 'Products', description: 'Help customers browse categories', icon: '▦' },
+  collection_list: { category: 'Products', description: 'A visual list of collections', icon: '▥' },
+  rich_text: { category: 'Content', description: 'Heading and formatted supporting copy', icon: '¶' },
+  image_with_text: { category: 'Content', description: 'Pair a story with an image', icon: '◧' },
+  multi_column: { category: 'Content', description: 'Present features in columns', icon: '▥' },
+  benefits: { category: 'Social proof', description: 'Trust points and customer benefits', icon: '✓' },
+  testimonials: { category: 'Social proof', description: 'Customer quotes and reviews', icon: '“' },
+  faq: { category: 'Content', description: 'Common questions and answers', icon: '?' },
+  gallery: { category: 'Images', description: 'A responsive image gallery', icon: '▦' },
+  newsletter: { category: 'Marketing', description: 'Email signup call to action', icon: '✉' },
+  promo_banner: { category: 'Marketing', description: 'Promote an offer or campaign', icon: '★' },
+  contact_callout: { category: 'Business', description: 'Contact details and enquiry action', icon: '@' },
+  opening_hours: { category: 'Business', description: 'Show regular opening times', icon: '◷' },
+  map_location: { category: 'Business', description: 'Location and visit information', icon: '⌖' },
+  announcement: { category: 'Layout', description: 'Slim message above the header', icon: '!' },
+  divider: { category: 'Layout', description: 'Create subtle visual separation', icon: '—' },
+  spacer: { category: 'Layout', description: 'Add controlled breathing room', icon: '↕' },
+};
+const addableSections = sectionLibrary.filter((type) => !['header', 'footer', 'slideshow', 'video_banner', 'before_after', 'custom_order_callout', 'social_grid', 'logo_list'].includes(type));
+const sectionCategories = [...new Set(addableSections.map((type) => sectionMeta[type]?.category ?? 'Content'))];
 ---
 <MerchantAdminLayout title={`Visual editor | ${store.name}`} store={store} user={user} membership={membership} heading="Visual editor" description="Edit the draft storefront. Saving does not publish until you choose Publish.">
-  <Subnav items={merchantOnlineStoreNavigation} />
-  {message && <p class="notice">{message} {previewHref && <a href={previewHref}>Open preview</a>}</p>}
-  {error && <p class="error">{error}</p>}
+  {(message || error) && <div class:list={['builder-feedback', error && 'is-error']}>{error || message}{previewHref && <a href={previewHref} target="_blank">Open preview ↗</a>}</div>}
   <section class="editor-toolbar">
+    <a class="builder-back" href="/admin/online-store" aria-label="Back to Online Store">←</a>
     <div class="editor-context"><strong>Online store / Editor</strong><small>Draft v{draft?.version} · {published ? `Live v${published.version}` : 'Not published'}</small></div>
     <div class="device-switcher" aria-label="Preview device">
       {(['desktop', 'tablet', 'mobile'] as DeviceMode[]).map((mode) => <a class:list={['device-button', device === mode && 'is-active']} href={editorHref(selectedSection?.id, mode)}>{mode}</a>)}
     </div>
+    <div class="builder-panel-toggles"><button class="secondary" type="button" data-toggle-panel="structure">Structure</button><button class="secondary" type="button" data-toggle-panel="inspector">Settings</button></div>
     <form method="POST" class="split">
-      <button class="secondary" name="action" value="preview">Create preview</button>
-      <button name="action" value="publish">Publish draft</button>
+      <span class="save-indicator"><i></i>Draft saved</span>
+      <button class="secondary" name="action" value="preview">Preview draft</button>
+      <button name="action" value="publish">Publish changes</button>
     </form>
   </section>
   <section class="editor-shell">
@@ -137,40 +176,54 @@ const editorHref = (sectionId = selectedSection?.id, selectedDevice = device, se
           <div class:list={['section-row', section.id === selectedSection?.id && 'is-selected']}>
             <a class="section-select" href={editorHref(section.id)}><strong>{section.label}</strong>
             <span class="muted">{section.type} · {section.visible ? 'visible' : 'hidden'}</span>
-            </a><div class="section-actions">
+            </a><details class="section-menu"><summary aria-label={`Actions for ${section.label}`} title="Section actions">•••</summary><div class="section-actions">
               <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="move-up" aria-label={`Move ${section.label} up`} title="Move up">↑</button></form>
               <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="move-down" aria-label={`Move ${section.label} down`} title="Move down">↓</button></form>
               <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="toggle-section" aria-label={`${section.visible ? 'Hide' : 'Show'} ${section.label}`} title={section.visible ? 'Hide section' : 'Show section'}>{section.visible ? '◉' : '○'}</button></form>
               <form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><button class="icon-button" name="action" value="duplicate-section" aria-label={`Duplicate ${section.label}`} title="Duplicate section">⧉</button></form>
-            </div>
+              {!['header', 'footer'].includes(section.type) && <details class="remove-confirm"><summary class="icon-button danger-icon" aria-label={`Remove ${section.label}`} title="Remove section">×</summary><form method="POST"><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={section.id} /><span>Remove?</span><button name="action" value="remove-section">Yes</button></form></details>}
+            </div></details>
           </div>
         ))}
       </div>
-      <form method="POST" class="add-section-row">
-        <input type="hidden" name="pageId" value={pageId} />
-        <label class="field">Add section<select name="sectionType">{sectionLibrary.map((type) => <option value={type}>{type.replaceAll('_', ' ')}</option>)}</select></label>
-        <button name="action" value="add-section">Add section</button>
-      </form>
+      <details class="section-picker">
+        <summary>＋ Add section</summary>
+        <div class="section-picker-popover">
+          <div class="section-picker-heading"><div><strong>Add section</strong><small>Choose a building block for {page.title}</small></div><button type="button" data-close-picker aria-label="Close section picker">×</button></div>
+          <label class="section-search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Search sections" data-section-search /></label>
+          <div class="section-library">{sectionCategories.map((category) => <section><h3>{category}</h3>{addableSections.filter((type) => (sectionMeta[type]?.category ?? 'Content') === category).map((type) => <form method="POST" data-section-option={type}><input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionType" value={type} /><button name="action" value="add-section"><span>{sectionMeta[type]?.icon ?? '□'}</span><span><strong>{type.replaceAll('_', ' ')}</strong><small>{sectionMeta[type]?.description ?? 'Flexible storefront content section'}</small></span><span>＋</span></button></form>)}</section>)}</div>
+        </div>
+      </details>
     </aside>
     <div class="preview-workspace">
-      <div class="preview-label"><span>Storefront preview</span><span>{device}</span></div>
+      <div class="preview-label"><button type="button" data-fit-preview>Fit</button><span>{device} preview · Click a section to edit</span><a href={`/store/${store.slug}`} target="_blank">Open live ↗</a></div>
       <div class:list={['canvas-device', device]}>
         <StorefrontRenderer store={store} configuration={configuration} pageId={pageId} preview editor selectedSectionId={selectedSection?.id} />
       </div>
     </div>
     <aside class="editor-panel inspector-panel">
       <div class="panel-heading"><div><p>Inspector</p><h2>{selectedSection.label}</h2></div></div>
-      <div class="inspector-tabs"><span class="is-active">Section</span><span>Design below</span></div>
-      <form method="POST" class="stack">
+      <p class="inspector-type">{selectedSection.type.replaceAll('_', ' ')} · {selectedSection.visible ? 'Visible' : 'Hidden'}</p>
+      <form method="POST" class="inspector-form">
         <input type="hidden" name="pageId" value={pageId} /><input type="hidden" name="sectionId" value={selectedSection.id} />
-        <label class="field">Section label<input name="label" value={selectedSection.label} /></label>
-        <label class="field">Heading<input name="heading" value={String(selectedSection.settings.heading ?? '')} /></label>
-        <label class="field">Body<textarea name="body">{String(selectedSection.settings.body ?? '')}</textarea></label>
-        <label class="field">Announcement text<input name="text" value={String(selectedSection.settings.text ?? '')} /></label>
-        <button name="action" value="section-settings">Save changes</button>
+        <details open class="inspector-group"><summary>Content</summary><div>
+          <label class="field">Section name<input name="label" value={selectedSection.label} /></label>
+          {selectedSection.type === 'announcement' ? <label class="field">Announcement text<input name="text" value={String(selectedSection.settings.text ?? '')} /></label> : <>
+            {['hero','image_with_text'].includes(selectedSection.type) && <label class="field">Eyebrow<input name="eyebrow" value={String(selectedSection.settings.eyebrow ?? '')} placeholder="Optional label" /></label>}
+            {!['header','footer','divider','spacer'].includes(selectedSection.type) && <label class="field">Heading<input name="heading" value={String(selectedSection.settings.heading ?? '')} /></label>}
+            {['hero','image_with_text','rich_text','promo_banner','newsletter','contact_callout','custom_order_callout'].includes(selectedSection.type) && <label class="field">Supporting text<textarea name="body">{String(selectedSection.settings.body ?? '')}</textarea></label>}
+          </>}
+          {selectedSection.blocks.some((block) => block.type === 'button') && <div class="nested-fields"><span>Primary button</span><label class="field">Label<input name="buttonLabel" value={String(selectedSection.blocks.find((block) => block.type === 'button')?.settings.label ?? '')} /></label><label class="field">Destination<select name="buttonHref"><option value="">No link</option>{Object.values(configuration.pages).filter((item) => item.id !== 'not_found').map((item) => <option value={item.handle} selected={selectedSection.blocks.find((block) => block.type === 'button')?.settings.href === item.handle}>{item.title}</option>)}</select></label></div>}
+        </div></details>
+        {['hero','image_with_text','product_grid','category_grid','gallery','multi_column'].includes(selectedSection.type) && <details open class="inspector-group"><summary>Layout</summary><div>
+          {['hero','image_with_text'].includes(selectedSection.type) && <label class="field">Image position<select name="imagePosition"><option value="left" selected={selectedSection.settings.imagePosition === 'left'}>Left</option><option value="right" selected={selectedSection.settings.imagePosition !== 'left'}>Right</option></select></label>}
+          <label class="field">Content alignment<select name="alignment"><option value="left" selected={selectedSection.settings.alignment !== 'center'}>Left</option><option value="center" selected={selectedSection.settings.alignment === 'center'}>Centre</option></select></label>
+          {['product_grid','category_grid','gallery','multi_column'].includes(selectedSection.type) && <label class="field">Desktop columns<select name="columnsDesktop">{[2,3,4,5].map((count) => <option value={count} selected={Number(selectedSection.settings.columnsDesktop ?? 4) === count}>{count}</option>)}</select></label>}
+        </div></details>}
+        <div class="inspector-save"><span>Saved to draft only</span><button name="action" value="section-settings">Save changes</button></div>
       </form>
-      <hr />
-      <h2>Global design</h2>
+      <a class="inspector-design-link" href="/admin/online-store/branding"><span>◐</span><span><strong>Store-wide design</strong><small>Colours, type and layout</small></span><span>→</span></a>
+      <details class="legacy-design-controls"><summary>Quick design controls</summary>
       <form method="POST" class="stack">
         <label class="field">Store name<input name="storeNameDisplay" value={configuration.globalSettings.storeNameDisplay} /></label>
         <label class="field">Logo text<input name="logoText" value={configuration.globalSettings.logoText} maxlength="4" /></label>
@@ -181,14 +234,44 @@ const editorHref = (sectionId = selectedSection?.id, selectedDevice = device, se
         <label class="field">Button radius<input name="buttonRadius" type="range" min="0" max="28" value={configuration.globalSettings.buttonRadius} /></label>
         <label class="field">Section spacing<input name="sectionSpacing" type="range" min="32" max="120" value={configuration.globalSettings.sectionSpacing} /></label>
         <button name="action" value="global">Save global design</button>
-      </form>
-      <hr />
-      <h2>Revisions</h2>
+      </form></details>
+      <details class="revision-panel"><summary>Revision history</summary>
       <p class="muted">Draft v{draft?.version}. Published {published ? `v${published.version}` : 'none'}.</p>
       <form method="POST" class="stack">
         <label class="field">Rollback to published revision<select name="revisionId">{revisions.filter((revision) => revision.status === 'published').map((revision) => <option value={revision.id}>v{revision.version} · {new Date(revision.createdAt).toLocaleString('en-GB')}</option>)}</select></label>
         <button class="secondary" name="action" value="rollback">Rollback</button>
-      </form>
+      </form></details>
     </aside>
   </section>
+  <script is:inline>
+    (() => {
+      const shell = document.querySelector('.editor-shell');
+      document.querySelectorAll('[data-toggle-panel]').forEach((button) => button.addEventListener('click', () => {
+        const panel = button.getAttribute('data-toggle-panel');
+        shell?.classList.toggle(`hide-${panel}`);
+        button.setAttribute('aria-pressed', String(!shell?.classList.contains(`hide-${panel}`)));
+      }));
+      document.querySelectorAll('.is-editor-section').forEach((section) => section.addEventListener('click', (event) => {
+        if (event.target.closest('a,button,input,select,textarea')) return;
+        const id = section.getAttribute('data-section-id');
+        if (!id) return;
+        const url = new URL(window.location.href);
+        url.searchParams.set('section', id);
+        window.location.href = url.toString();
+      }));
+      const picker = document.querySelector('.section-picker');
+      document.querySelector('[data-close-picker]')?.addEventListener('click', () => picker?.removeAttribute('open'));
+      document.querySelector('[data-section-search]')?.addEventListener('input', (event) => {
+        const query = event.target.value.toLowerCase().trim();
+        document.querySelectorAll('[data-section-option]').forEach((option) => {
+          option.hidden = Boolean(query) && !option.getAttribute('data-section-option').replaceAll('_', ' ').includes(query);
+        });
+      });
+      document.querySelector('[data-fit-preview]')?.addEventListener('click', () => shell?.classList.toggle('fit-preview'));
+      document.querySelectorAll('form').forEach((form) => form.addEventListener('submit', () => {
+        form.querySelectorAll('button[type="submit"], button:not([type])').forEach((button) => { button.disabled = true; });
+      }));
+      document.addEventListener('keydown', (event) => { if (event.key === 'Escape') picker?.removeAttribute('open'); });
+    })();
+  </script>
 </MerchantAdminLayout>

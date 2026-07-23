@@ -1,24 +1,40 @@
 ---
 import MerchantAdminLayout from '../../../../layouts/MerchantAdminLayout.astro';
-import Subnav from '../../../../components/platform/Subnav.astro';
+import OnlineStoreNav from '../../../../components/platform/OnlineStoreNav.astro';
 import { requireStoreMembership } from '../../../../lib/platform/auth';
-import { merchantOnlineStoreNavigation } from '../../../../lib/platform/navigation';
-import { getDraftRevision } from '../../../../lib/storefront/themeStore';
+import { getDraftRevision, saveDraft, updatePage } from '../../../../lib/storefront/themeStore';
 const value = await requireStoreMembership(Astro);
 if (!value) return Astro.redirect('/login');
 const { store, user, membership } = value;
-const draft = await getDraftRevision(store.id, Astro);
-const page = draft?.configuration.pages[Astro.params.pageId ?? ''];
+let draft = await getDraftRevision(store.id, Astro);
+const pageId = Astro.params.pageId ?? '';
+let message = '';
+let error = '';
+if (Astro.request.method === 'POST' && draft?.configuration.pages[pageId]) {
+  try {
+    const form = await Astro.request.formData();
+    let configuration = JSON.parse(JSON.stringify(draft.configuration));
+    configuration = updatePage(configuration, pageId, { title: String(form.get('title') ?? ''), handle: String(form.get('handle') ?? ''), status: String(form.get('status') ?? ''), seoTitle: String(form.get('seoTitle') ?? ''), seoDescription: String(form.get('seoDescription') ?? '') });
+    draft = await saveDraft({ storeId: store.id, userId: user.id, role: membership.role, configuration, baseVersion: draft.version, changeType: 'page.updated' }, Astro);
+    message = 'Page settings saved to draft.';
+  } catch (caught) { error = caught instanceof Error ? caught.message : 'Page settings could not be saved.'; }
+}
+const page = draft?.configuration.pages[pageId];
 if (!page) Astro.response.status = 404;
 ---
 <MerchantAdminLayout title={`${page?.title ?? 'Page not found'} | ${store.name}`} store={store} user={user} membership={membership} heading={page?.title ?? 'Page not found'} description="Page details and section structure.">
-  <Subnav items={merchantOnlineStoreNavigation} />
+  <div class="online-store-workspace"><OnlineStoreNav /><div class="store-workspace-content narrow-workspace">
   {page ? (
-    <section class="card">
-      <p><strong>Handle:</strong> {page.handle}</p>
-      <p><strong>Type:</strong> {page.pageType}</p>
-      <p><strong>Sections:</strong> {page.sections.length}</p>
-      <div style="margin-top:14px"><a class="button" href="/admin/online-store/editor">Edit in visual editor</a></div>
+    <section>
+      <a class="back-link" href="/admin/online-store/pages">← Back to pages</a>
+      <div class="workspace-section-heading split-heading"><div><span>{page.pageType} page</span><h2>{page.title}</h2><p>{page.sections.length} sections · {page.handle}</p></div><a class="button secondary" href={`/admin/online-store/editor?page=${page.id}`}>Open in builder</a></div>
+      {message && <p class="notice">{message}</p>}{error && <p class="error">{error}</p>}
+      <form method="POST" class="workspace-form-card stack">
+        <div class="form-group"><h3>Page details</h3><div class="form-grid"><label class="field">Title<input name="title" value={page.title} /></label><label class="field">Visibility<select name="status"><option value="draft" selected={page.status === 'draft'}>Draft</option><option value="published" selected={page.status === 'published'}>Visible</option></select></label></div><label class="field">URL handle<input name="handle" value={page.handle} disabled={['home','product','collection','cart','not_found'].includes(page.id)} /></label></div>
+        <div class="form-group"><h3>Search appearance</h3><label class="field">SEO title<input name="seoTitle" value={page.seo?.title ?? ''} maxlength="70" /></label><label class="field">SEO description<textarea name="seoDescription" maxlength="180">{page.seo?.description ?? ''}</textarea></label></div>
+        <div class="sticky-form-actions"><span>Changes are saved to your draft.</span><button>Save page</button></div>
+      </form>
     </section>
   ) : <section class="empty">This page does not exist for the current store.</section>}
+  </div></div>
 </MerchantAdminLayout>

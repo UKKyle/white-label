@@ -1,8 +1,7 @@
 ---
 import MerchantAdminLayout from '../../../layouts/MerchantAdminLayout.astro';
-import Subnav from '../../../components/platform/Subnav.astro';
+import OnlineStoreNav from '../../../components/platform/OnlineStoreNav.astro';
 import { requireStoreMembership } from '../../../lib/platform/auth';
-import { merchantOnlineStoreNavigation } from '../../../lib/platform/navigation';
 import { getDraftRevision } from '../../../lib/storefront/themeStore';
 const value = await requireStoreMembership(Astro);
 if (!value) return Astro.redirect('/login');
@@ -11,12 +10,13 @@ const draft = await getDraftRevision(store.id, Astro);
 const pages = draft ? Object.values(draft.configuration.pages) : [];
 ---
 <MerchantAdminLayout title={`Pages | ${store.name}`} store={store} user={user} membership={membership} heading="Pages" description="Theme pages managed through the section-based editor foundation.">
-  <Subnav items={merchantOnlineStoreNavigation} />
-  <section class="toolbar"><span class="badge">{pages.length} page foundations</span><a class="button secondary" href="/admin/online-store/pages/new">Create page</a></section>
-  <section class="table-wrap">
+  <div class="online-store-workspace"><OnlineStoreNav /><div class="store-workspace-content">
+  <div class="workspace-section-heading split-heading"><div><span>Content</span><h2>Storefront pages</h2><p>Manage customer-facing content and open any page directly in the builder.</p></div><a class="button" href="/admin/online-store/pages/new">Create page</a></div>
+  <section class="workspace-table">
     <table>
-      <thead><tr><th>Page</th><th>Type</th><th>Handle</th><th>Sections</th><th>Status</th><th>Action</th></tr></thead>
-      <tbody>{pages.length ? pages.map((page) => <tr><td>{page.title}</td><td>{page.pageType}</td><td>{page.handle}</td><td>{page.sections.length}</td><td><span class="badge">{page.status}</span></td><td><a class="button secondary" href={`/admin/online-store/pages/${page.id}`}>Open</a></td></tr>) : <tr><td colspan="6"><div class="empty">Choose a template to create the first page definitions.</div></td></tr>}</tbody>
+      <thead><tr><th>Page</th><th>Type</th><th>URL</th><th>Sections</th><th>Status</th><th></th></tr></thead>
+      <tbody>{pages.length ? pages.map((page) => <tr><td><strong>{page.title}</strong><small>{['home','product','collection','cart','not_found'].includes(page.id) ? 'Required system page' : 'Editable page'}</small></td><td><span class="page-type">{page.pageType}</span></td><td><code>{page.handle}</code></td><td>{page.sections.length}</td><td><span class:list={['badge', page.status === 'published' && 'success']}>{page.status}</span></td><td><div class="row-actions"><a href={`/admin/online-store/editor?page=${page.id}`}>Build</a><a href={`/admin/online-store/pages/${page.id}`}>Settings</a></div></td></tr>) : <tr><td colspan="6"><div class="polished-empty"><span>□</span><h3>No pages yet</h3><p>Choose a template to create your storefront foundations.</p><a class="button" href="/admin/online-store/templates">Choose template</a></div></td></tr>}</tbody>
     </table>
   </section>
+  </div></div>
 </MerchantAdminLayout>

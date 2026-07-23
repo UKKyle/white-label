@@ -1,0 +1,21 @@
+---
+import PlatformLayout from '../../../layouts/PlatformLayout.astro';
+import StorefrontRenderer from '../../../components/storefront/StorefrontRenderer.astro';
+import { getStoreBySlug } from '../../../lib/platform/store';
+import { getPublishedRevision } from '../../../lib/storefront/themeStore';
+import { resolvePageId } from '../../../lib/storefront/links';
+
+const slug = Astro.params.slug ?? '';
+const path = Astro.params.path ?? '';
+const store = await getStoreBySlug(slug, Astro);
+const published = store ? await getPublishedRevision(store.id, Astro) : null;
+const pageId = published ? resolvePageId(path, published.configuration.pages) : 'not_found';
+if (!store || !published || pageId === 'not_found') Astro.response.status = !store ? 404 : !published ? 503 : 404;
+---
+<PlatformLayout title={store ? store.name : 'Store not found'}>
+  {store && published ? (
+    <StorefrontRenderer store={store} configuration={published.configuration} pageId={pageId} />
+  ) : (
+    <main class="auth"><section class="panel stack"><div class="brand">Storefront</div><h1>{store ? 'Storefront unavailable' : 'Store not found'}</h1><p class="muted">This destination is not available.</p></section></main>
+  )}
+</PlatformLayout>
